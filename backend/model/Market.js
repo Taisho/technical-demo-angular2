@@ -16,7 +16,7 @@ function Market(input) {
 }
 
 
-Market.find = function(asset, base) {
+Market.find = function(asset, base, callback) {
 
     db.dbHandler.serialize(function() {
         db.dbHandler.get("SELECT * FROM markets WHERE asset = ? AND base = ?", [asset, base], (err, result) => {
