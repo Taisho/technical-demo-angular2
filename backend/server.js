@@ -4,7 +4,7 @@ var WebSocketServer = require('websocket').server;
 var http = require('http');
 let port = 4202;
 
-const stream = require('strea');
+const stream = require('./end-points/stream');
 
 var server = http.createServer(function(request, response) {
     console.log((new Date()) + ' Received request for ' + request.url);
@@ -46,6 +46,7 @@ wsServer.on('request', function(request) {
 
     switch(request.resource) {
         case '/stream':
+            console.log("stream is: ", stream);
             stream.serve(request, connection);
             break;
         //case '/':

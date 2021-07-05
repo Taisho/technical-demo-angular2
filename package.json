@@ -18,7 +18,11 @@
     "@angular/platform-browser": "~12.1.0",
     "@angular/platform-browser-dynamic": "~12.1.0",
     "@angular/router": "~12.1.0",
+    "axios": "^0.21.1",
+    "ccxt": "^1.52.30",
+    "dotenv": "^10.0.0",
     "rxjs": "~6.6.0",
+    "sqlite3": "^5.0.2",
     "tslib": "^2.2.0",
     "websocket": "^1.0.34",
     "zone.js": "~0.11.4"
