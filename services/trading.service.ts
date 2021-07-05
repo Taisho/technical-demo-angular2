@@ -48,6 +48,7 @@ export class TradingService {
   }
 
   onmessage(msg: any) {
+    msg = JSON.parse(msg.data);
     this.response.next(msg);
   }
 

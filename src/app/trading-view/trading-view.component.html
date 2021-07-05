@@ -1,5 +1,12 @@
 <div class="TradingView">
     <div class="PriceView">
-        <div class="JapaneseCandle"></div>
+        <div class="ToolBox">
+            <button (click)="toggleHourView()" [class.toggled]="viewMode == enumViewMode.HOURLY">Hour</button>
+            <button (click)="toggleDayView()" [class.toggled]="viewMode == enumViewMode.DAILY">Day</button>
+        </div>
+        <div class="CandleWrapper">
+            <div class="JapaneseCandle" *ngFor="let candle of japaneseCandles" [style.height.px]="20"
+            [attr.data-dateTime]="candle.dateTime"></div>
+        </div>
     </div>
 </div>

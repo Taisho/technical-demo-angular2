@@ -43,7 +43,7 @@ HourlyPrice.fetchLastHourData = function(marketId, callback) {
     const date = new Date();
     let timestamp = date.getTime();
 
-    db.dbHandler.serialize(function() {
+    db.dbHandler.serialize(() => {
         let query = "SELECT * FROM "+tableName+" WHERE id = (SELECT MAX(id) FROM "+tableName+") AND market = ?";
 
         db.dbHandler.get(query, [marketId], (err, result) => {
@@ -62,9 +62,16 @@ HourlyPrice.fetchLastHourData = function(marketId, callback) {
  */
 HourlyPrice.fetchLastDaysData = function(marketId, daysAgo, callback) {
     const date = new Date();
-    let timestamp = date.getTime();
+    //2629743 = 1 month
+    //7889229 = 3 months;
+    console.log("HourlyPrice.fetchLastDaysData(), daysAgo: ", daysAgo);
+    let secondsAgo = daysAgo*24*60*60;
+    let timestamp = date.getTime() - (secondsAgo*1000);
+    let newDate = new Date(timestamp);
+    console.log("HourlyPrice.fetchLastDaysData()", date.getTime(), date);
+    console.log(newDate, newDate.getTime());
 
-    db.dbHandler.serialize(function() {
+    db.dbHandler.serialize(() => {
         db.dbHandler.all("SELECT * FROM "+tableName+" WHERE `timestamp` > ?", [timestamp], (err, result) => {
             let blessedResult = HourlyPrice.factory(result);
             callback(err, blessedResult);

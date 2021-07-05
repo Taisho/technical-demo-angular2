@@ -5,6 +5,14 @@ var http = require('http');
 let port = 4202;
 
 const stream = require('./end-points/stream');
+const db = require('./database');
+const filesystem = require('./filesystem');
+
+
+filesystem.ensureExists(filesystem.appDir, function () {
+    db.initDb(filesystem.appDir, filesystem.dataDir);
+})
+
 
 var server = http.createServer(function(request, response) {
     console.log((new Date()) + ' Received request for ' + request.url);

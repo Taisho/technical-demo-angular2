@@ -3,6 +3,13 @@ const path = require('path');
 const fs = require('fs');
 //const filesystem = require(path.resolve('filesystem'));
 
+/**
+ * IMPORTANT: In order to use this library you need to use this idiom (Look at cli/price-collector.js for an example):
+  filesystem.ensureExists(filesystem.appDir, function () {
+    db.initDb(filesystem.appDir, filesystem.dataDir);
+  })
+ */
+
 let dbHandler;
 
 function initDb(appDirectory, dataDirectory)

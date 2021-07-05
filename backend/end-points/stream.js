@@ -1,4 +1,4 @@
-const db = require(path.resolve( '../database'));
+const db = require('../database');
 const { HourlyPrice } = require('../model/HourlyPrice');
 
 module.exports.serve = function(request, connection) {
@@ -33,9 +33,17 @@ function getHistoricalPriceData(request, connection, appRequest) {
     let marketId = appRequest.data.marketId;
     let daysAgo = appRequest.data.daysAgo;
     HourlyPrice.fetchLastDaysData(marketId, daysAgo, (err, result) => {
+        if(err != null)
+            result = {error: err};
+        else {
+            result = {
+                response: 'response-historical-price-data',
+                data: result
+            };
+            result = JSON.stringify(result);
+        }
 
+        console.log("getHistoricalPriceData: ", result);
+        connection.sendUTF(result);
     });
-
-    let historicalPriceData = JSON.stringify();
-    connection.sendUTF(historicalPriceData);
 }
