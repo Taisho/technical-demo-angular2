@@ -4,6 +4,7 @@
 }
 
 .PriceView {
+    position: relative;
     border: 1px solid black;
     height: 90vh;
     width: calc(100% - 30vw);
@@ -13,10 +14,28 @@
     margin-bottom: 1em;
 }
 
+/*.JapaneseCandle {
+    position: absolute;
+    background-color: grey;
+    width: 1em;
+}*/
+
 .JapaneseCandle {
     position: absolute;
     background-color: grey;
     width: 1em;
+}
+
+.CandlesViewPort {
+    overflow: scroll;
+    position: relative;
+    height: 100%;
+}
+
+.CandlesContainer {
+    /* overflow: scroll; */
+    position: relative;
+    height: 100%;
 }
 
 .ToolBox {
@@ -32,4 +51,33 @@
 
 .ToolBox button.toggled {
     background-color: rgb(200, 169, 223);
+}
+
+.crosshair-x {
+    position: absolute;
+    height: 1px;
+    background-color: black;
+    /* border-top: 1px dotted black; */
+    width:100%;
+    top: -3px;
+    pointer-events: none;
+}
+
+.crosshair-y {
+    position: absolute;
+    width: 1px;
+    background-color: black;
+    border-top: 1px dotted black;
+    height:100%;
+    left: -3px;
+    pointer-events: none;
+}
+
+.rightSidePriceLabel {
+    position: absolute;
+    /* opacity: 0; */
+}
+
+.invisible {
+    opacity: 0;
 }

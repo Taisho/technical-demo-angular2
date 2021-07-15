@@ -1,12 +1,26 @@
 <div class="TradingView">
-    <div class="PriceView">
+    <div class="PriceView" (mousemove)="onMouseMove($event)" (mouseleave)="onMouseLeave($event)">
+        <div class="crosshair crosshair-x" [style.top.px]="crosshairY" [style.display]="showCrosshair == true ? 'block' : 'none' "></div>
+        <div class="crosshair crosshair-y" [style.left.px]="crosshairX" [style.display]="showCrosshair == true ? 'block' : 'none' "></div>
         <div class="ToolBox">
             <button (click)="toggleHourView()" [class.toggled]="viewMode == enumViewMode.HOURLY">Hour</button>
             <button (click)="toggleDayView()" [class.toggled]="viewMode == enumViewMode.DAILY">Day</button>
         </div>
-        <div class="CandleWrapper">
-            <div class="JapaneseCandle" *ngFor="let candle of japaneseCandles" [style.height.px]="20"
-            [attr.data-dateTime]="candle.dateTime"></div>
+        <div class="CandlesViewPort" #CandlesViewPort>
+            <div class="CandlesContainer" [style.width.px]="candlesContainerConfig.width">
+                <div class="JapaneseCandle" *ngFor="let candle of japaneseCandles" [style.height.px]="candle.height"
+                [style.width.px]="candleWidth"
+                [style.right.px]="candle.offsetRight"
+                [style.top.px]="candle.offsetTop"
+                [attr.data-dateTime]="candle.dateTime"
+                [attr.data-priceClose]="candle.priceClose"
+                [attr.data-market]="candle.market"></div>
+            </div>
+        </div>
+        <div #priceLabels *ngFor="let label of priceLabels; let i = index" [attr.data-i]="i" class="rightSidePriceLabel"
+            [style.right.px]="label.right" [style.top.px]="label.top"
+            [class.invisible]="label.invisible">
+            {{label.text}}
         </div>
     </div>
 </div>
