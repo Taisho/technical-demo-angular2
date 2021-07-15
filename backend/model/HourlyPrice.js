@@ -72,7 +72,7 @@ HourlyPrice.fetchLastDaysData = function(marketId, daysAgo, callback) {
     console.log(newDate, newDate.getTime());
 
     db.dbHandler.serialize(() => {
-        db.dbHandler.all("SELECT * FROM "+tableName+" WHERE `timestamp` > ?", [timestamp], (err, result) => {
+        db.dbHandler.all("SELECT * FROM "+tableName+" WHERE `timestamp` > ? AND market = ?", [timestamp, marketId], (err, result) => {
             let blessedResult = HourlyPrice.factory(result);
             callback(err, blessedResult);
         });
