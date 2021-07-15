@@ -20,6 +20,11 @@
     width: 1em;
 }*/
 
+.ViewPortCrossHairLayer {
+    position: relative;
+    height: 100%;
+}
+
 .JapaneseCandle {
     position: absolute;
     background-color: grey;
@@ -27,9 +32,10 @@
 }
 
 .CandlesViewPort {
-    overflow: scroll;
+    overflow-x: scroll;
     position: relative;
     height: 100%;
+    cursor: crosshair;
 }
 
 .CandlesContainer {
@@ -76,6 +82,11 @@
 .rightSidePriceLabel {
     position: absolute;
     /* opacity: 0; */
+}
+
+.rightSidePriceLabel.hovered {
+    background-color: grey;
+    border: 1px solid black;
 }
 
 .invisible {

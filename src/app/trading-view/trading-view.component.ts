@@ -34,6 +34,13 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
 
   public candleWidth = 10; // candle width in pixels
   public priceLabelHeight:number = 0;
+  public hoverPriceLabelConfig: PriceLabel = {
+    text: "0",
+    value: 0,
+    invisible: true,
+    right: 0,
+    top: 0,
+  };
 
   constructor(private tradingService: TradingService, private changeDetectorRef: ChangeDetectorRef) {
     tradingService.response.subscribe((msg)=>this.onMessageFromServer(msg));
@@ -42,7 +49,7 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
   }
 
   ngOnInit(): void {
-    // Fetch historical price data and then subscribe for real time price changes. (Try to do all of this through the websocket)
+    // Fetch historical price data and then subscribe for real time price changes
     setTimeout(()=>{
       let message = {command: "get-historical-price-data", data: {
         marketId: 1,
@@ -51,7 +58,6 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
       console.log("TradingViewComponent.ngOnInit()");
       this.tradingService.request.next(message);
     }, 0);
-    // this.tradingService.request(message);
   }
 
   ngAfterViewInit(): void {
@@ -69,11 +75,13 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
       top: 0,
     }
 
-    setTimeout(() => {
+    //this.changeDetectorRef.detectChanges();
+
+    //setTimeout(() => {
       let priceLabel = document.querySelector(".rightSidePriceLabel") as HTMLElement;
       let labelBoundingBox = priceLabel.getBoundingClientRect();
       this.priceLabelHeight = labelBoundingBox.height;
-    }, 0);
+    //}, 0);
 
   }
 
@@ -89,12 +97,52 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
   onMouseMove(event: MouseEvent) {
     this.showCrosshair = true;
     let boundingBox = (event.currentTarget as HTMLElement).getBoundingClientRect();
-    this.crosshairX = event.clientX - boundingBox.x - 3;
-    this.crosshairY = event.clientY - boundingBox.y - 3;
+    this.crosshairX = event.clientX - boundingBox.x;
+    this.crosshairY = event.clientY - boundingBox.y;
+
+    this.showHoveredPriceLabel();
   }
 
   onMouseLeave(event: MouseEvent) {
+    this.showCrosshair = false;
+    this.hoverPriceLabelConfig.invisible = true;
+  }
 
+  @ViewChild('hoverPriceLabel') public hoverPriceLabel!: ElementRef;
+  showHoveredPriceLabel() {
+    if(this.priceLabelHeight <= 0)
+      return;
+    
+    this.hoverPriceLabelConfig.invisible = false;
+    this.hoverPriceLabelConfig.top = this.crosshairY - (this.priceLabelHeight/2);
+
+    const priceVeiwNative = document.querySelector(".PriceView") as HTMLElement;
+    const containerBoundingBox = this.candlesContainerNative!.getBoundingClientRect();
+    let pixelPriceRatio = (this.priceTop - this.priceBottom) / containerBoundingBox.height;
+    const priceViewBoundingBox = priceVeiwNative.getBoundingClientRect();
+
+    // this is needed because price labels are positioned relative to the PriceView element, but are displayed
+    // relative to the CandlesContainer
+    //const labelsTopOffset = containerBoundingBox.top - priceViewBoundingBox.top;
+
+    let priceHovered = ((this.priceTop - (this.crosshairY * pixelPriceRatio)));// - this.priceLabelHeight/2;//(this.priceLabelHeight*i)+labelsTopOffset;
+    //console.log("this.crosshairY: ", this.crosshairY);
+    //console.log("pricePixelRatio: ", pixelPriceRatio);
+    //console.log("");
+
+    
+    //(this.crosshairY * pricePixelRatio)
+    
+    //(((pricePixelRatio * this.priceTop) - (priceLabel.value * pricePixelRatio))+labelsTopOffset) - this.priceLabelHeight/2;//(this.priceLabelHeight*i)+labelsTopOffset;
+
+    this.hoverPriceLabelConfig.text = priceHovered.toString();
+    this.changeDetectorRef.detectChanges();
+    const hoverPriceBox = this.hoverPriceLabel?.nativeElement.getBoundingClientRect();
+    this.hoverPriceLabelConfig.right = -hoverPriceBox.width;
+    // setTimeout(()=> {
+    //   this.hoverPriceLabelConfig.invisible = false;
+
+    // }, 0);
   }
 
   onMessageFromServer(msg: any) {
@@ -107,7 +155,7 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
         }
 
         this.japaneseCandlesHours.length = 0;
-        //msg.data = msg.data.slice(Math.max(msg.data.length - 10, 1))
+        msg.data = msg.data.slice(Math.max(msg.data.length - 100, 1))
         this.expandCandles(msg.data);  //msg.data gets modified here
         this.japaneseCandlesHours.push(...msg.data);
         console.log("Response from websocket:", msg);
@@ -191,7 +239,7 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
       console.error("repositionCandles: candlesViewPort's boundingBox is null!");
     }
 
-    let pricePixelRatio = boundingBox.height / this.priceTop;
+    let pricePixelRatio = boundingBox.height / (this.priceTop - this.priceBottom);
     for(let i=0; i<candles.length; i++) {
       let candle = candles[i];
       if(candle.condensed == true)
@@ -209,12 +257,23 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
     if(labelsN > 1)
       labelsN = Math.floor(labelsN/2); //don't clutter price labels one next to the other. It's gonna appear confusing
 
-    // Price labels should be divisible by some nice round number, like 10 or 100
-    const divisibility = (this.priceTop - this.priceBottom) / labelsN;
+    // Price labels should be divisible by some nice round number, like 10, 100, etc.
+    let divisibility = (this.priceTop - this.priceBottom) / labelsN;
+
+    let divisibilityStrArr = divisibility.toString().split('.');
+    if(divisibilityStrArr.length == 2) {
+      if(divisibilityStrArr[0].length > 1) {
+        let divisibilityStr = divisibilityStrArr[0].charAt(0)+"0".repeat(divisibilityStrArr[0].length-1);
+        divisibility = parseInt(divisibilityStr);
+      }
+    }
+    
+    console.log("divisibility is: "+divisibility);
 
     return {divisibility, labelsN};
   }
 
+  @ViewChildren('priceLabels') public priceLabelsViews!: QueryList<ElementRef>;
   figureOutPriceLabels() {
     const {divisibility, labelsN} = this.figureOutPriceLabelDivisibility();
     if(this.priceLabelHeight == 0) //needed, because this method could be called before the DOM is ready.
@@ -234,33 +293,23 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
       price -= divisibility;
     }
 
-
-    // let boundingBox = this.candlesViewPort?.nativeElement.getBoundingClientRect();
-    // let pricePixelRatio = boundingBox.height / this.priceTop;
-
-    // Calling repositionPriceLabels with a short delay in order to give a chance to the browser to render elements first
-    // otherwise their bounding box would be reported wrongly.
-
-    setTimeout(()=>{
-      this.repositionPriceLabels();
-    },0);
+    this.repositionPriceLabels();
   }
 
-  @ViewChildren('priceLabels') public priceLabelsViews!: QueryList<ElementRef>;
   
   repositionPriceLabels() {
-      const priceVeiwNative = document.querySelector(".PriceView") as HTMLElement;
-      const priceViewBoundingBox = priceVeiwNative.getBoundingClientRect();
+      //const priceVeiwNative = document.querySelector(".PriceView") as HTMLElement;
+      //const priceViewBoundingBox = priceVeiwNative.getBoundingClientRect();
       const containerBoundingBox = this.candlesContainerNative!.getBoundingClientRect();
 
       let pricePixelRatio = containerBoundingBox.height / (this.priceTop - this.priceBottom);
 
       // this is needed because price labels are positioned relative to the PriceView element, but are displayed
       // relative to the CandlesContainer
-      const labelsTopOffset = containerBoundingBox.top - priceViewBoundingBox.top;
+      //const labelsTopOffset = containerBoundingBox.top - priceViewBoundingBox.top;
       this.changeDetectorRef.detectChanges();
 
-      setTimeout(()=>{
+      //setTimeout(()=>{
         //console.log("---------------------------");
         //let priceLabels = document.querySelectorAll('.rightSidePriceLabel');
         try {
@@ -272,7 +321,7 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
             let nativeElement = view?.nativeElement;
             let boundingBox = nativeElement.getBoundingClientRect();
             priceLabel.right = (-boundingBox.width);
-            priceLabel.top = (((pricePixelRatio * this.priceTop) - (priceLabel.value * pricePixelRatio))+labelsTopOffset) - this.priceLabelHeight/2;//(this.priceLabelHeight*i)+labelsTopOffset;
+            priceLabel.top = (((pricePixelRatio * this.priceTop) - (priceLabel.value * pricePixelRatio))/*+labelsTopOffset*/) - this.priceLabelHeight/2;//(this.priceLabelHeight*i)+labelsTopOffset;
             //console.log("containerBoundingBox.height: ", containerBoundingBox.height);
             //console.log("priceLabel.value: ", priceLabel.value , "| priceLabel.value * pricePixelRatio: ", priceLabel.value * pricePixelRatio);
             priceLabel.invisible = false;
@@ -284,7 +333,7 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
           this.changeDetectorRef.detectChanges();
         }
 
-      },0);
+      //},0);
   }
 }
 
