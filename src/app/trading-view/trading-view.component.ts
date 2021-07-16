@@ -16,12 +16,6 @@ enum ViewMode {
 })
 export class TradingViewComponent implements OnInit, AfterViewInit {
 
-  /**
-   * Outstanding things:
-   * 
-   * 
-   */
-
   public priceTop: number = 0;
   public priceBottom: number = 0;
 
@@ -65,6 +59,7 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
     let observer = new ResizeObserver((entries: ResizeObserverEntry[], observer: ResizeObserver)=> this.onPriceChartResize(entries, observer));
     observer.observe(this.candlesContainerNative);
 
+    
     // Putting a dummy price label, that will give us the dimensions of a single price label.
     this.priceLabels.length = 0;
     this.priceLabels[0] = {
@@ -78,8 +73,11 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
     //this.changeDetectorRef.detectChanges();
 
     //setTimeout(() => {
+      
       let priceLabel = document.querySelector(".rightSidePriceLabel") as HTMLElement;
+      //return;
       let labelBoundingBox = priceLabel.getBoundingClientRect();
+      
       this.priceLabelHeight = labelBoundingBox.height;
     //}, 0);
 
@@ -123,10 +121,10 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
     this.hoverPriceLabelConfig.invisible = false;
     this.hoverPriceLabelConfig.top = this.crosshairY - (this.priceLabelHeight/2);
 
-    const priceVeiwNative = document.querySelector(".PriceView") as HTMLElement;
+    //const priceVeiwNative = document.querySelector(".PriceVolumeView") as HTMLElement;
     const containerBoundingBox = this.candlesContainerNative!.getBoundingClientRect();
     let pixelPriceRatio = (this.priceTop - this.priceBottom) / containerBoundingBox.height;
-    const priceViewBoundingBox = priceVeiwNative.getBoundingClientRect();
+    //const priceViewBoundingBox = priceVeiwNative.getBoundingClientRect();
 
     // this is needed because price labels are positioned relative to the PriceView element, but are displayed
     // relative to the CandlesContainer
@@ -280,7 +278,7 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
   figureOutPriceLabels() {
     const divisibility = this.figureOutPriceLabelDivisibility();
     //the following guard is needed, because this method could be called before the DOM is ready or before price data is available.
-    if(this.priceLabelHeight == 0 || this.priceTop == 0 || divisibility == 0)
+    if(this.priceLabelHeight == 0 || this.priceTop == 0 || divisibility == 0 || divisibility == Infinity)
       return;
 
     const containerBoundingBox = this.candlesContainerNative!.getBoundingClientRect();
@@ -321,8 +319,83 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
       price -= divisibility;
     }
   }
+
+  public resizingFlangeConfig: ResizingFlange = {
+    isResizing: false,
+    volumeViewHeight: undefined,
+    priceViewHeight: undefined,
+    volumeViewPreviousHeight: 0,
+    priceViewPreviousHeight: 0,
+    mouseOrigin: 0,
+  };
+
+  @ViewChild('PriceView') public PriceView!: ElementRef;
+  @ViewChild('VolumeView') public VolumeView!: ElementRef;
+
+
+  resizingFlange_MouseDown(event: MouseEvent) {
+    console.log("mouse down");
+
+    ((event as MouseEvent).currentTarget as HTMLElement).onpointermove = (e:PointerEvent)=>this.resizingFlange_PointerMove(e);
+    ((event as MouseEvent).currentTarget as HTMLElement).setPointerCapture((event as PointerEvent).pointerId);
+
+    this.resizingFlangeConfig.isResizing = true;
+    const priceBBox = this.PriceView.nativeElement.getBoundingClientRect();
+    this.resizingFlangeConfig.priceViewHeight = priceBBox.height+"px";
+    this.resizingFlangeConfig.priceViewPreviousHeight = priceBBox.height;
+    const volumeBBox = this.VolumeView.nativeElement.getBoundingClientRect();
+    this.resizingFlangeConfig.volumeViewHeight = volumeBBox.height+"px";
+    this.resizingFlangeConfig.volumeViewPreviousHeight = volumeBBox.height;
+    this.resizingFlangeConfig.mouseOrigin = event.clientY;
+  }
+
+  resizingFlange_MouseUp(event: MouseEvent) {
+    console.log("mouse up");
+    this.resizingFlangeConfig.isResizing = false;
+
+    ((event as MouseEvent).currentTarget as HTMLElement).onpointermove = null;
+    ((event as MouseEvent).currentTarget as HTMLElement).releasePointerCapture((event as PointerEvent).pointerId);
+  }
+
+
+  resizingFlange_PointerMove(event: PointerEvent) {
+    if(this.resizingFlangeConfig.isResizing == true) {
+
+      let priceHeight = this.resizingFlangeConfig.priceViewPreviousHeight;
+      let volumeHeight = this.resizingFlangeConfig.volumeViewPreviousHeight;
+      if(event.clientY < this.resizingFlangeConfig.mouseOrigin) {
+        priceHeight -= this.resizingFlangeConfig.mouseOrigin - event.clientY;
+        volumeHeight += this.resizingFlangeConfig.mouseOrigin - event.clientY;
+
+        if(priceHeight <= 60) // prevent making the one of the panes impractically small
+          return;
+
+        this.resizingFlangeConfig.priceViewHeight = priceHeight.toString() + "px";
+        this.resizingFlangeConfig.volumeViewHeight = volumeHeight.toString() + "px";
+      }
+      else {
+        priceHeight += event.clientY - this.resizingFlangeConfig.mouseOrigin;
+        volumeHeight -= event.clientY - this.resizingFlangeConfig.mouseOrigin;
+        if(volumeHeight <= 60) // prevent making the one of the panes impractically small
+          return;
+
+        this.resizingFlangeConfig.priceViewHeight = priceHeight.toString() + "px";
+        this.resizingFlangeConfig.volumeViewHeight = volumeHeight.toString() + "px";
+      }
+
+      this.changeDetectorRef.detectChanges();
+    }
+  }
 }
 
+interface ResizingFlange {
+  isResizing: boolean,
+  volumeViewHeight: string|undefined,
+  priceViewHeight: string|undefined,
+  volumeViewPreviousHeight: number,
+  priceViewPreviousHeight: number,
+  mouseOrigin: number,
+}
 
 interface PriceLabel {
   text: string;

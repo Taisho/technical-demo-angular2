@@ -1,5 +1,5 @@
 :root {
-    --toolbox-height: 1.2
+    --toolbox-height: 1.2em;
 }
 
 .TradingView {
@@ -7,7 +7,7 @@
     min-height: 90vh;
 }
 
-.PriceView {
+.PriceVolumeView {
     position: relative;
     border: 1px solid black;
     height: 90vh;
@@ -18,6 +18,20 @@
     margin-bottom: 1em;
 }
 
+.PriceView {
+    height: calc(75% - 1.2em - 2px);
+}
+
+.VolumeView {
+    height: calc(25% - 2px);
+}
+
+.resizingFlange {
+    height: 2px;
+    background-color: black;
+    cursor: ns-resize;
+}
+
 /*.JapaneseCandle {
     position: absolute;
     background-color: grey;
@@ -26,7 +40,7 @@
 
 .ViewPortCrossHairLayer {
     position: relative;
-    height: calc(100% - 1.2em);
+    height: 100%;
 }
 
 .JapaneseCandle {
@@ -36,7 +50,7 @@
 }
 
 .CandlesViewPort {
-    overflow-x: scroll;
+    /* overflow-x: scroll; */
     position: relative;
     height: 100%;
     cursor: crosshair;
