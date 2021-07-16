@@ -96,14 +96,21 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
   public showCrosshair = false;
   onMouseMove(event: MouseEvent) {
     this.showCrosshair = true;
-    let boundingBox = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    let element = event.currentTarget as HTMLElement;
+    let boundingBox = element.getBoundingClientRect();
+    // if(event.clientY > boundingBox.y+element.clientHeight){
+    //   this.hideCrossHair();
+    //   return;
+    // }
+
+    
     this.crosshairX = event.clientX - boundingBox.x;
     this.crosshairY = event.clientY - boundingBox.y;
 
     this.showHoveredPriceLabel();
   }
 
-  onMouseLeave(event: MouseEvent) {
+  hideCrossHair(event?: MouseEvent) {
     this.showCrosshair = false;
     this.hoverPriceLabelConfig.invisible = true;
   }

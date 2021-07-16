@@ -5,10 +5,10 @@
             <button (click)="toggleDayView()" [class.toggled]="viewMode == enumViewMode.DAILY">Day</button>
             <span>Top Price: {{priceTop}} Bottom Price: {{priceBottom}}</span>
         </div>
-        <div class="ViewPortCrossHairLayer" (mousemove)="onMouseMove($event)" (mouseleave)="onMouseLeave($event)">
+        <div class="ViewPortCrossHairLayer">
             <div class="crosshair crosshair-x" [style.top.px]="crosshairY" [style.display]="showCrosshair == true ? 'block' : 'none' "></div>
             <div class="crosshair crosshair-y" [style.left.px]="crosshairX" [style.display]="showCrosshair == true ? 'block' : 'none' "></div>
-            <div class="CandlesViewPort" #CandlesViewPort >
+            <div class="CandlesViewPort" #CandlesViewPort (mousemove)="onMouseMove($event)" (mouseleave)="hideCrossHair($event)">
               <div class="CandlesContainer" [style.width.px]="candlesContainerConfig.width">
                     <div class="JapaneseCandle" *ngFor="let candle of japaneseCandles" [style.height.px]="candle.height"
                     [style.width.px]="candleWidth"
