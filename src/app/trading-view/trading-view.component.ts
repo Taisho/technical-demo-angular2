@@ -252,17 +252,12 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
 
   figureOutPriceLabelDivisibility(): number {
     let boundingBox = this.candlesContainerNative!.getBoundingClientRect();
-    //let pricePixelRatio = boundingBox.height / (this.priceTop - this.priceBottom);
     let pricePixelRatio = (this.priceTop - this.priceBottom) / boundingBox.height;
 
-    //let pricePixelRatio = boundingBox.height / this.priceTop;
-    // let labelsN = Math.floor(boundingBox.height / this.priceLabelHeight);
-    // if(labelsN > 1)
-    //   labelsN = Math.floor(labelsN/2); //don't clutter price labels one next to the other. It's gonna appear confusing
+    //don't clutter price labels one next to the other. It's gonna appear confusing. Here we assume 
+    let divisibility = this.priceLabelHeight*3*pricePixelRatio;
 
     // Price labels should be divisible by some nice round number, like 10, 100, etc.
-    let divisibility = this.priceLabelHeight*3*pricePixelRatio //(this.priceTop - this.priceBottom) / labelsN;
-
     let divisibilityStrArr = divisibility.toString().split('.');
     if(divisibilityStrArr.length == 2) {
       if(divisibilityStrArr[0].length > 1) {
@@ -270,8 +265,6 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
         divisibility = parseInt(divisibilityStr);
       }
     }
-    
-    console.log("divisibility is: "+divisibility);
 
     return divisibility;
   }
@@ -285,88 +278,42 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
 
     const containerBoundingBox = this.candlesContainerNative!.getBoundingClientRect();
     let pixelPriceRatio = containerBoundingBox.height / (this.priceTop - this.priceBottom);
-    //let pricePixelRatio = (this.priceTop - this.priceBottom) / containerBoundingBox.height;
-
     let price = this.priceTop - (this.priceTop % divisibility) + divisibility;
-    //....
-    //if(price + divisibility < )
-
     this.priceLabels.length = 0;
     for(let i=0; ; i++) {
-      let label:PriceLabel = {
+
+      const label:PriceLabel = {
         text: price.toString(),
         value: price,
         invisible: false,
         right: 0,
         top: ((pixelPriceRatio * this.priceTop) - (price * pixelPriceRatio)) - this.priceLabelHeight/2,
       }
+
+      //Don't display the latest label if it's going to be positioned too low. This is also functions as the natural end of the loop
       if(label.top+(this.priceLabelHeight/2) > containerBoundingBox.height)
         break;
+
+      // Above when we decided the value of $price we intentionally added $divisibility in order to have a label that is higher than
+      // the price of the highest candle. This means, however, that it's possible that the first price label to be positioned way higher, appearing
+      // as if it is out of place. If that's the case we will begin with the lower label
       if(Math.ceil(label.top) < -(this.priceLabelHeight/2)) {
         i--; //restart the loop 
         price -= divisibility; // with lower price
         continue;
       }
-        
 
       this.priceLabels.push(label);
       this.changeDetectorRef.detectChanges();
-      let view = this.priceLabelsViews.get(i);
-      let nativeElement = view?.nativeElement;
-      let boundingBox = nativeElement.getBoundingClientRect();
+      const view = this.priceLabelsViews.get(i);
+      const nativeElement = view?.nativeElement;
+      const boundingBox = nativeElement.getBoundingClientRect();
       label.right = (-boundingBox.width);
       this.changeDetectorRef.detectChanges();
-      //label.top = (((pixelPriceRatio * this.priceTop) - (label.value * pixelPriceRatio))/*+labelsTopOffset*/) - this.priceLabelHeight/2;//(this.priceLabelHeight*i)+labelsTopOffset;
-      //console.log("containerBoundingBox.height: ", containerBoundingBox.height);
-      //console.log("priceLabel.value: ", priceLabel.value , "| priceLabel.value * pixelPriceRatio: ", priceLabel.value * pixelPriceRatio);
-      //label.invisible = false;
-
 
       price -= divisibility;
     }
-
-    //this.repositionPriceLabels();
   }
-
-  
-  // repositionPriceLabels() {
-  //     //const priceVeiwNative = document.querySelector(".PriceView") as HTMLElement;
-  //     //const priceViewBoundingBox = priceVeiwNative.getBoundingClientRect();
-  //     const containerBoundingBox = this.candlesContainerNative!.getBoundingClientRect();
-
-  //     let pixelPriceRatio = containerBoundingBox.height / (this.priceTop - this.priceBottom);
-
-  //     // this is needed because price labels are positioned relative to the PriceView element, but are displayed
-  //     // relative to the CandlesContainer
-  //     //const labelsTopOffset = containerBoundingBox.top - priceViewBoundingBox.top;
-  //     this.changeDetectorRef.detectChanges();
-
-  //     //setTimeout(()=>{
-  //       //console.log("---------------------------");
-  //       //let priceLabels = document.querySelectorAll('.rightSidePriceLabel');
-  //       try {
-  //         for(let i=0; i<this.priceLabels.length; i++) {
-  //           let priceLabel = this.priceLabels[i];
-  //           //console.log(priceLabel);
-    
-  //           let view = this.priceLabelsViews.get(i);
-  //           let nativeElement = view?.nativeElement;
-  //           let boundingBox = nativeElement.getBoundingClientRect();
-  //           priceLabel.right = (-boundingBox.width);
-  //           priceLabel.top = (((pixelPriceRatio * this.priceTop) - (priceLabel.value * pixelPriceRatio))/*+labelsTopOffset*/) - this.priceLabelHeight/2;//(this.priceLabelHeight*i)+labelsTopOffset;
-  //           //console.log("containerBoundingBox.height: ", containerBoundingBox.height);
-  //           //console.log("priceLabel.value: ", priceLabel.value , "| priceLabel.value * pixelPriceRatio: ", priceLabel.value * pixelPriceRatio);
-  //           priceLabel.invisible = false;
-  //         }
-  //       } catch(e) {
-  //           return;
-  //       }
-  //       finally {
-  //         this.changeDetectorRef.detectChanges();
-  //       }
-
-  //     //},0);
-  // }
 }
 
 
