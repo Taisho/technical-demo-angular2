@@ -81,12 +81,15 @@
 
 .rightSidePriceLabel {
     position: absolute;
+    border: 1px solid transparent;
+    pointer-events: none;
     /* opacity: 0; */
 }
 
 .rightSidePriceLabel.hovered {
-    background-color: grey;
+    background-color: white;
     border: 1px solid black;
+    pointer-events: none;
 }
 
 .invisible {

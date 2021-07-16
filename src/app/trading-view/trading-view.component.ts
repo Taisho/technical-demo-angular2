@@ -250,15 +250,18 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
   public priceLabels:Array<PriceLabel> = [];
   public candlesContainerNative!: HTMLElement|null;
 
-  figureOutPriceLabelDivisibility(): {divisibility:number, labelsN:number} {
+  figureOutPriceLabelDivisibility(): number {
     let boundingBox = this.candlesContainerNative!.getBoundingClientRect();
+    //let pricePixelRatio = boundingBox.height / (this.priceTop - this.priceBottom);
+    let pricePixelRatio = (this.priceTop - this.priceBottom) / boundingBox.height;
+
     //let pricePixelRatio = boundingBox.height / this.priceTop;
-    let labelsN = Math.floor(boundingBox.height / this.priceLabelHeight);
-    if(labelsN > 1)
-      labelsN = Math.floor(labelsN/2); //don't clutter price labels one next to the other. It's gonna appear confusing
+    // let labelsN = Math.floor(boundingBox.height / this.priceLabelHeight);
+    // if(labelsN > 1)
+    //   labelsN = Math.floor(labelsN/2); //don't clutter price labels one next to the other. It's gonna appear confusing
 
     // Price labels should be divisible by some nice round number, like 10, 100, etc.
-    let divisibility = (this.priceTop - this.priceBottom) / labelsN;
+    let divisibility = this.priceLabelHeight*3*pricePixelRatio //(this.priceTop - this.priceBottom) / labelsN;
 
     let divisibilityStrArr = divisibility.toString().split('.');
     if(divisibilityStrArr.length == 2) {
@@ -270,71 +273,100 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
     
     console.log("divisibility is: "+divisibility);
 
-    return {divisibility, labelsN};
+    return divisibility;
   }
 
   @ViewChildren('priceLabels') public priceLabelsViews!: QueryList<ElementRef>;
   figureOutPriceLabels() {
-    const {divisibility, labelsN} = this.figureOutPriceLabelDivisibility();
-    if(this.priceLabelHeight == 0) //needed, because this method could be called before the DOM is ready.
+    const divisibility = this.figureOutPriceLabelDivisibility();
+    //the following guard is needed, because this method could be called before the DOM is ready or before price data is available.
+    if(this.priceLabelHeight == 0 || this.priceTop == 0 || divisibility == 0)
       return;
 
+    const containerBoundingBox = this.candlesContainerNative!.getBoundingClientRect();
+    let pixelPriceRatio = containerBoundingBox.height / (this.priceTop - this.priceBottom);
+    //let pricePixelRatio = (this.priceTop - this.priceBottom) / containerBoundingBox.height;
+
+    let price = this.priceTop - (this.priceTop % divisibility) + divisibility;
+    //....
+    //if(price + divisibility < )
+
     this.priceLabels.length = 0;
-    let price = this.priceTop - (this.priceTop % divisibility);
-    for(let i=1; i<=labelsN; i++) {
+    for(let i=0; ; i++) {
       let label:PriceLabel = {
         text: price.toString(),
         value: price,
-        invisible: true,
+        invisible: false,
         right: 0,
-        top: 0,
+        top: ((pixelPriceRatio * this.priceTop) - (price * pixelPriceRatio)) - this.priceLabelHeight/2,
       }
+      if(label.top+(this.priceLabelHeight/2) > containerBoundingBox.height)
+        break;
+      if(Math.ceil(label.top) < -(this.priceLabelHeight/2)) {
+        i--; //restart the loop 
+        price -= divisibility; // with lower price
+        continue;
+      }
+        
+
       this.priceLabels.push(label);
+      this.changeDetectorRef.detectChanges();
+      let view = this.priceLabelsViews.get(i);
+      let nativeElement = view?.nativeElement;
+      let boundingBox = nativeElement.getBoundingClientRect();
+      label.right = (-boundingBox.width);
+      this.changeDetectorRef.detectChanges();
+      //label.top = (((pixelPriceRatio * this.priceTop) - (label.value * pixelPriceRatio))/*+labelsTopOffset*/) - this.priceLabelHeight/2;//(this.priceLabelHeight*i)+labelsTopOffset;
+      //console.log("containerBoundingBox.height: ", containerBoundingBox.height);
+      //console.log("priceLabel.value: ", priceLabel.value , "| priceLabel.value * pixelPriceRatio: ", priceLabel.value * pixelPriceRatio);
+      //label.invisible = false;
+
+
       price -= divisibility;
     }
 
-    this.repositionPriceLabels();
+    //this.repositionPriceLabels();
   }
 
   
-  repositionPriceLabels() {
-      //const priceVeiwNative = document.querySelector(".PriceView") as HTMLElement;
-      //const priceViewBoundingBox = priceVeiwNative.getBoundingClientRect();
-      const containerBoundingBox = this.candlesContainerNative!.getBoundingClientRect();
+  // repositionPriceLabels() {
+  //     //const priceVeiwNative = document.querySelector(".PriceView") as HTMLElement;
+  //     //const priceViewBoundingBox = priceVeiwNative.getBoundingClientRect();
+  //     const containerBoundingBox = this.candlesContainerNative!.getBoundingClientRect();
 
-      let pricePixelRatio = containerBoundingBox.height / (this.priceTop - this.priceBottom);
+  //     let pixelPriceRatio = containerBoundingBox.height / (this.priceTop - this.priceBottom);
 
-      // this is needed because price labels are positioned relative to the PriceView element, but are displayed
-      // relative to the CandlesContainer
-      //const labelsTopOffset = containerBoundingBox.top - priceViewBoundingBox.top;
-      this.changeDetectorRef.detectChanges();
+  //     // this is needed because price labels are positioned relative to the PriceView element, but are displayed
+  //     // relative to the CandlesContainer
+  //     //const labelsTopOffset = containerBoundingBox.top - priceViewBoundingBox.top;
+  //     this.changeDetectorRef.detectChanges();
 
-      //setTimeout(()=>{
-        //console.log("---------------------------");
-        //let priceLabels = document.querySelectorAll('.rightSidePriceLabel');
-        try {
-          for(let i=0; i<this.priceLabels.length; i++) {
-            let priceLabel = this.priceLabels[i];
-            //console.log(priceLabel);
+  //     //setTimeout(()=>{
+  //       //console.log("---------------------------");
+  //       //let priceLabels = document.querySelectorAll('.rightSidePriceLabel');
+  //       try {
+  //         for(let i=0; i<this.priceLabels.length; i++) {
+  //           let priceLabel = this.priceLabels[i];
+  //           //console.log(priceLabel);
     
-            let view = this.priceLabelsViews.get(i);
-            let nativeElement = view?.nativeElement;
-            let boundingBox = nativeElement.getBoundingClientRect();
-            priceLabel.right = (-boundingBox.width);
-            priceLabel.top = (((pricePixelRatio * this.priceTop) - (priceLabel.value * pricePixelRatio))/*+labelsTopOffset*/) - this.priceLabelHeight/2;//(this.priceLabelHeight*i)+labelsTopOffset;
-            //console.log("containerBoundingBox.height: ", containerBoundingBox.height);
-            //console.log("priceLabel.value: ", priceLabel.value , "| priceLabel.value * pricePixelRatio: ", priceLabel.value * pricePixelRatio);
-            priceLabel.invisible = false;
-          }
-        } catch(e) {
-            return;
-        }
-        finally {
-          this.changeDetectorRef.detectChanges();
-        }
+  //           let view = this.priceLabelsViews.get(i);
+  //           let nativeElement = view?.nativeElement;
+  //           let boundingBox = nativeElement.getBoundingClientRect();
+  //           priceLabel.right = (-boundingBox.width);
+  //           priceLabel.top = (((pixelPriceRatio * this.priceTop) - (priceLabel.value * pixelPriceRatio))/*+labelsTopOffset*/) - this.priceLabelHeight/2;//(this.priceLabelHeight*i)+labelsTopOffset;
+  //           //console.log("containerBoundingBox.height: ", containerBoundingBox.height);
+  //           //console.log("priceLabel.value: ", priceLabel.value , "| priceLabel.value * pixelPriceRatio: ", priceLabel.value * pixelPriceRatio);
+  //           priceLabel.invisible = false;
+  //         }
+  //       } catch(e) {
+  //           return;
+  //       }
+  //       finally {
+  //         this.changeDetectorRef.detectChanges();
+  //       }
 
-      //},0);
-  }
+  //     //},0);
+  // }
 }
 
 

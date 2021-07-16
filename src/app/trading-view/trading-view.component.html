@@ -23,12 +23,12 @@
         <div #priceLabels *ngFor="let label of priceLabels; let i = index" [attr.data-i]="i" class="rightSidePriceLabel"
             [style.right.px]="label.right" [style.top.px]="label.top"
             [class.invisible]="label.invisible">
-            {{label.text}}
+            -{{label.text}}
         </div>
         <div #hoverPriceLabel class="rightSidePriceLabel hovered"
             [style.right.px]="hoverPriceLabelConfig.right" [style.top.px]="hoverPriceLabelConfig.top"
             [class.invisible]="hoverPriceLabelConfig.invisible">
-            {{hoverPriceLabelConfig.text}}
+            -{{hoverPriceLabelConfig.text}}
         </div>
         </div>
     </div>
