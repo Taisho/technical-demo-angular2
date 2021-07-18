@@ -1,7 +1,6 @@
-import { normalizeGenFileSuffix } from '@angular/compiler/src/aot/util';
 import { Component, OnInit, AfterViewInit, ViewChild, ViewChildren, QueryList, ElementRef,
   ChangeDetectorRef } from '@angular/core';
-import { fakeAsync } from '@angular/core/testing';
+import { DateTime } from "luxon";
 import { TradingService } from 'services/trading.service';
 
 enum ViewMode {
@@ -36,6 +35,8 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
     top: 0,
   };
 
+  public timeLabels: Array<DateLabel> = [];
+
   constructor(private tradingService: TradingService, private changeDetectorRef: ChangeDetectorRef) {
     tradingService.response.subscribe((msg)=>this.onMessageFromServer(msg));
 
@@ -58,8 +59,16 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
     this.candlesContainerNative = document.querySelector('.CandlesContainer') as HTMLElement;
     let observer = new ResizeObserver((entries: ResizeObserverEntry[], observer: ResizeObserver)=> this.onPriceChartResize(entries, observer));
     observer.observe(this.candlesContainerNative);
-
     
+
+    this.determinePriceLabelHeight();
+    this.determineTimeLabelWidth();
+
+    this.figureOutTimeLabels();
+    //this.figureOutTimePeriods();
+  }
+
+  determinePriceLabelHeight() {
     // Putting a dummy price label, that will give us the dimensions of a single price label.
     this.priceLabels.length = 0;
     this.priceLabels[0] = {
@@ -69,24 +78,54 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
       right: 0,
       top: 0,
     }
+     
 
-    //this.changeDetectorRef.detectChanges();
+    this.changeDetectorRef.detectChanges();
 
-    //setTimeout(() => {
-      
-      let priceLabel = document.querySelector(".rightSidePriceLabel") as HTMLElement;
-      //return;
-      let labelBoundingBox = priceLabel.getBoundingClientRect();
-      
-      this.priceLabelHeight = labelBoundingBox.height;
-    //}, 0);
+    let priceLabel = document.querySelector(".priceLabel") as HTMLElement;
+    let priceLabelBoundingBox = priceLabel.getBoundingClientRect();
+    this.priceLabelHeight = priceLabelBoundingBox.height;
+  }
 
+  determineTimeLabelWidth() {
+    this.timeLabels.length = 0;
+    let labelText;
+    // switch(this.viewMode) {
+    //   case ViewMode.HOURLY:
+    //     labelText = "00/00";
+    //     break;
+    //   case ViewMode.DAILY:
+    //     labelText = "00:00";
+    //     break;
+    // }
+    this.timeLabels[0] = {
+      text: "00/00",
+      timestamp: 0,
+      invisible: true,
+      right:0,
+      top:0,
+    }
+    this.timeLabels[1] = {
+      text: "00:00",
+      timestamp: 0,
+      invisible: true,
+      right:0,
+      top:0,
+    }
+
+    this.changeDetectorRef.detectChanges();
+    let timeLabel = document.querySelectorAll(".timeLabel");
+    let bbox = timeLabel[0].getBoundingClientRect();
+    this.timePeriodsConfig.timeWidth = bbox.width;
+    bbox = timeLabel[1].getBoundingClientRect();
+    this.timePeriodsConfig.dateWidth = bbox.width;
   }
 
   onPriceChartResize(entries: ResizeObserverEntry[], observer: ResizeObserver) {
     let entry = entries[entries.length-1];
     this.figureOutPriceLabels();
-    this.repositionCandles();
+
+    //this.repositionCandles();
   }
 
   public crosshairX = 0;
@@ -150,6 +189,133 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
     // }, 0);
   }
 
+  figureOutTimeLabelDivisibility(): number {
+    //let boundingBox = this.candlesViewPort!.nativeElement.getBoundingClientRect();
+    //let timePixelRatio = (this.priceTop - this.priceBottom) / boundingBox.height; // .... 
+
+    //don't clutter labels one next to the other. It's gonna appear confusing. 
+    let divisibility = 0;// = this.timeLabelWidth*3;
+    // switch() {
+
+    // }
+
+    // Price labels should be divisible by some nice round number, like 10, 100, etc.
+    // let divisibilityStrArr = divisibility.toString().split('.');
+    // // TODO nicely format other prices that have less than 2 digits on the left side of the decimal point.
+    // if(divisibilityStrArr.length == 2) {
+    //   if(divisibilityStrArr[0].length > 1) {
+    //     let divisibilityStr = divisibilityStrArr[0].charAt(0)+"0".repeat(divisibilityStrArr[0].length-1);
+    //     divisibility = parseInt(divisibilityStr);
+    //   }
+    // }
+
+    return divisibility;
+  }
+
+  public timePeriodsConfig  = {
+    //these two get calculated from determineTimeLabelWidth()
+    timeWidth: 0, //the width of labels displaying cl
+    dateWidth: 0, //the width of labels displaying dates
+
+    periodPixelLength: 5, // length of a period in pixels
+    rightMostPeriod: null as unknown as DateTime,
+    rightMostOffset:0, // how much the right most period is scrolled in pixels. Positive value indicate offset to the left, negative one to the right
+    //periods: [] as Object[],
+    mouseOriginX: 0,
+    isScrolling: false,
+  }
+
+
+  //public timeLabelWidth = 0;
+  public figureOutTimeLabels() {
+    /*
+        TODO render labels relative to the rightmost period
+        TODO rendering while scrolling and rendering while still are different
+
+        TODO Consider rendering labels in two passes: one for round values (like 00:00 o'clock or beginning of month for days)
+              and the second pass is for the values around them
+
+        TODO rename and adjust usage of some variables
+
+     */
+    
+    const candlesViewPortBoundingBox = this.candlesViewPort!.nativeElement.getBoundingClientRect();
+    this.timeLabels.length = 0;
+    let offsetRight = 0;// + this.timePeriodsConfig.rightMostOffset;
+    let counter = 0;
+    let dt:DateTime = DateTime.now().set({minute:0, second:0, millisecond:0});
+    switch(this.viewMode) {
+      case ViewMode.HOURLY:
+        dt = dt.plus({hours: 5});
+      break;
+    case ViewMode.DAILY:
+        dt = dt.plus({days: 5});
+      break;
+    }
+    this.timePeriodsConfig.rightMostPeriod = dt;
+
+    let labelText = "";
+    let labelCenter = this.timePeriodsConfig.timeWidth/2 + this.timePeriodsConfig.rightMostOffset;
+
+    do {
+      // the center of the label needs to be aligned to the center of the time period.
+      const period = Math.round((labelCenter / this.timePeriodsConfig.periodPixelLength) - (this.timePeriodsConfig.rightMostOffset/this.timePeriodsConfig.periodPixelLength));
+      //labelCenter = period * this.timePeriodsConfig.periodPixelLength;
+      switch(this.viewMode) {
+        case ViewMode.HOURLY:
+            dt = this.timePeriodsConfig.rightMostPeriod.minus({hours: period});
+            labelText = dt.toFormat("HH:mm");
+          break;
+        case ViewMode.DAILY:
+            dt = this.timePeriodsConfig.rightMostPeriod.minus({days: period});
+            labelText = dt.toFormat("LL/dd");
+          break;
+      }
+      offsetRight = labelCenter-(this.timePeriodsConfig.timeWidth/2);
+      if(offsetRight+(this.timePeriodsConfig.timeWidth/2) > candlesViewPortBoundingBox.width)
+        break;
+
+      const dateLabel:DateLabel = {
+        text: labelText,
+        invisible: false,
+        timestamp: dt.toMillis(),
+        right: offsetRight,
+        top: 0,
+      }
+      this.timeLabels.push(dateLabel);
+      this.changeDetectorRef.detectChanges();
+
+      counter++;
+
+      //offsetRight = (this.timePeriodsConfig.timeWidth * counter) + this.timePeriodsConfig.rightMostOffset;
+      labelCenter += (this.timePeriodsConfig.timeWidth/2) + (this.timePeriodsConfig.timeWidth*2);
+
+      // switch(this.viewMode) {
+      //   case ViewMode.HOURLY:
+      //     dt = dt.minus({hours: 1});
+      //   break;
+      // case ViewMode.DAILY:
+      //     dt = dt.minus({days: 1});
+      //   break;
+      // }
+
+      // TODO remove this condition after the method is bug free
+      if(counter > 100)
+        break;
+      
+    } while(true);
+  }
+
+  // public figureOutTimePeriods() {
+  //   const candlesViewPort = this.candlesViewPort!.nativeElement.getBoundingClientRect();
+  //   const periods = Math.ceil(candlesViewPort.width * this.timePeriodsConfig.periodPixelLength);
+  //   //const emptyObject = {};
+  //   for(let i=1; i<periods; i++) {
+  //     this.timePeriodsConfig.periods.push(1);
+  //   }
+  //   this.changeDetectorRef.detectChanges();
+  // }
+
   onMessageFromServer(msg: any) {
     switch(msg.response) {
 
@@ -173,11 +339,19 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
   toggleHourView() {
     this.viewMode = ViewMode.HOURLY;
     this.japaneseCandles = this.japaneseCandlesHours;
+
+    this.timePeriodsConfig.rightMostPeriod = DateTime.now().plus({hours: 5});
+    //TODO round the period down
+    this.figureOutTimeLabels();
   }
 
   toggleDayView() {
     this.viewMode = ViewMode.DAILY;
     this.japaneseCandles = this.japaneseCandlesDays;
+
+    this.timePeriodsConfig.rightMostPeriod = DateTime.now().plus({days: 5});
+    //TODO round the period down
+    this.figureOutTimeLabels();
   }
 
   public candlesContainerConfig = {width: 0};
@@ -188,69 +362,73 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
    * @param candles 
    */
   expandCandles(candles: Array<any>) {
-      let now = new Date();
-      let currentHour = now.getUTCHours();
-      let candleOffset = 0;
-      for(let i=0; i<candles.length; i++) {
-        let candle = candles[i];
-        let candleDate = new Date(candle.timestamp);
-        let mday:string|number = candleDate.getUTCDate(); mday = mday < 10 ? "0"+mday : mday.toString();
-        let month:string|number = candleDate.getUTCMonth(); month = month < 10 ? "0"+month : month.toString();
-        let hour:string|number = candleDate.getUTCHours();
-        
 
-        candle.dateTime = month+"/"+mday;
-        let hourDifference = Math.floor((now.getTime() - candleDate.getTime()) / 3600000);
-        candle.offsetRight = hourDifference * this.candleWidth;
+    const containerBoundingBox = this.candlesContainerNative!.getBoundingClientRect();
+    let pixelPriceRatio = containerBoundingBox.height / (this.priceTop - this.priceBottom);
 
-        // Because we receive japanese candles in ascending order, the first one is the furthest from the
-        // right side of the view port. (Maybe candles should be transmitted in descending order. It makes more sense that way)
-        if(i == 0) {
-          this.candlesContainerConfig.width = candle.offsetRight + this.candleWidth;
-        }
-
-        let priceTop = candle.condensed == true ? candle.priceClose : candle.priceTop ;
-        if(priceTop > this.priceTop)
-          this.priceTop = priceTop;
-
-        let priceBottom = candle.condensed == true ? candle.priceClose : candle.priceBottom;
-        if(this.priceBottom == 0 || priceBottom < this.priceBottom)
-          this.priceBottom = priceBottom;
-
-
-        if(true == candle.condensed) {
-          candle.height = 1;
-        }
-        candle.offsetTop = 0;
-      }
-
-      
-      setTimeout(()=>{
-        // adjust candles' view port to display most recent price candles
-        this.candlesViewPort?.nativeElement.scroll({
-          left: this.candlesContainerConfig.width
-        });
-
-        this.repositionCandles();
-      }, 0);
-
-      this.figureOutPriceLabels();
-  }
-
-  repositionCandles() {
-    const candles = this.japaneseCandles;
-    let boundingBox = this.candlesContainerNative!.getBoundingClientRect();
-    if(boundingBox == null) {
-      console.error("repositionCandles: candlesViewPort's boundingBox is null!");
-    }
-
-    let pricePixelRatio = boundingBox.height / (this.priceTop - this.priceBottom);
+    let now = new Date();
+    let currentHour = now.getUTCHours();
+    let candleOffset = 0;
     for(let i=0; i<candles.length; i++) {
       let candle = candles[i];
-      if(candle.condensed == true)
-        candle.offsetTop = boundingBox.height - (candle.priceClose * pricePixelRatio);
+      let candleDate = new Date(candle.timestamp);
+      let mday:string|number = candleDate.getUTCDate(); mday = mday < 10 ? "0"+mday : mday.toString();
+      let month:string|number = candleDate.getUTCMonth(); month = month < 10 ? "0"+month : month.toString();
+      //let hour:string|number = candleDate.getUTCHours();
+      
+
+      candle.dateTime = month+"/"+mday;
+      let hourDifference = Math.floor((now.getTime() - candleDate.getTime()) / 3600000);
+      candle.offsetRight = hourDifference * this.candleWidth;
+
+      // Because we receive japanese candles in ascending order, the first one is the furthest from the
+      // right side of the view port. (Maybe candles should be transmitted in descending order. It makes more sense that way)
+      // if(i == 0) {
+      //   this.candlesContainerConfig.width = candle.offsetRight + this.candleWidth;
+      // }
+
+      let priceTop = candle.condensed == true ? candle.priceClose : candle.priceTop;
+      if(priceTop > this.priceTop)
+        this.priceTop = priceTop;
+
+      let priceBottom = candle.condensed == true ? candle.priceClose : candle.priceBottom;
+      if(this.priceBottom == 0 || priceBottom < this.priceBottom)
+        this.priceBottom = priceBottom;
+
+      if(true == candle.condensed) {
+        candle.height = 1;
+        candle.offsetTop = ((pixelPriceRatio * this.priceTop) - (candle.priceClose * pixelPriceRatio));
+      }
+      
     }
+
+      
+      // setTimeout(()=>{
+      //   // adjust candles' view port to display most recent price candles
+      //   this.candlesViewPort?.nativeElement.scroll({
+      //     left: this.candlesContainerConfig.width
+      //   });
+
+      //   this.repositionCandles();
+      // }, 0);
+
+    this.figureOutPriceLabels();
   }
+
+  // repositionCandles() {
+  //   const candles = this.japaneseCandles;
+  //   let boundingBox = this.candlesContainerNative!.getBoundingClientRect();
+  //   if(boundingBox == null) {
+  //     console.error("repositionCandles: candlesViewPort's boundingBox is null!");
+  //   }
+
+  //   let pricePixelRatio = boundingBox.height / (this.priceTop - this.priceBottom);
+  //   for(let i=0; i<candles.length; i++) {
+  //     let candle = candles[i];
+  //     if(candle.condensed == true)
+  //       candle.offsetTop = boundingBox.height - (candle.priceClose * pricePixelRatio);
+  //   }
+  // }
 
   public priceLabels:Array<PriceLabel> = [];
   public candlesContainerNative!: HTMLElement|null;
@@ -264,6 +442,7 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
 
     // Price labels should be divisible by some nice round number, like 10, 100, etc.
     let divisibilityStrArr = divisibility.toString().split('.');
+    // TODO nicely format other prices that have less than 2 digits on the left side of the decimal point.
     if(divisibilityStrArr.length == 2) {
       if(divisibilityStrArr[0].length > 1) {
         let divisibilityStr = divisibilityStrArr[0].charAt(0)+"0".repeat(divisibilityStrArr[0].length-1);
@@ -295,7 +474,7 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
         top: ((pixelPriceRatio * this.priceTop) - (price * pixelPriceRatio)) - this.priceLabelHeight/2,
       }
 
-      //Don't display the latest label if it's going to be positioned too low. This is also functions as the natural end of the loop
+      //Don't display the latest label if it's going to be positioned too low. This also functions as the natural end of the loop
       if(label.top+(this.priceLabelHeight/2) > containerBoundingBox.height)
         break;
 
@@ -334,7 +513,6 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
 
 
   resizingFlange_MouseDown(event: MouseEvent) {
-    console.log("mouse down");
 
     ((event as MouseEvent).currentTarget as HTMLElement).onpointermove = (e:PointerEvent)=>this.resizingFlange_PointerMove(e);
     ((event as MouseEvent).currentTarget as HTMLElement).setPointerCapture((event as PointerEvent).pointerId);
@@ -386,6 +564,34 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
       this.changeDetectorRef.detectChanges();
     }
   }
+
+  priceVolume_MouseDown(event: PointerEvent) {
+    this.timePeriodsConfig.isScrolling = true;
+    this.timePeriodsConfig.mouseOriginX = event.clientX;
+    ((event as MouseEvent).currentTarget as HTMLElement).onpointermove = (e:PointerEvent)=>this.priceVolume_PointerMove(e);
+    ((event as MouseEvent).currentTarget as HTMLElement).setPointerCapture((event as PointerEvent).pointerId);
+  }
+
+  priceVolume_MouseUp(event: PointerEvent) {
+    this.timePeriodsConfig.isScrolling = false;
+
+    ((event as MouseEvent).currentTarget as HTMLElement).onpointermove = null;
+    ((event as MouseEvent).currentTarget as HTMLElement).releasePointerCapture((event as PointerEvent).pointerId);
+  }
+
+  priceVolume_PointerMove(event: PointerEvent) {
+    if(this.timePeriodsConfig.isScrolling == true) {
+      this.timePeriodsConfig.rightMostOffset = this.timePeriodsConfig.mouseOriginX - event.clientX;
+      this.figureOutTimeLabels();
+      this.changeDetectorRef.detectChanges();
+    }
+  }
+
+}
+
+interface PriceVolume {
+  isScrolling: boolean,
+
 }
 
 interface ResizingFlange {
@@ -400,6 +606,14 @@ interface ResizingFlange {
 interface PriceLabel {
   text: string;
   value: number;
+  invisible: boolean;
+  right: number;
+  top: number;
+}
+
+interface DateLabel {
+  text: string;
+  timestamp: number;
   invisible: boolean;
   right: number;
   top: number;

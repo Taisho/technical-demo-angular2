@@ -50,7 +50,7 @@
 }
 
 .CandlesViewPort {
-    /* overflow-x: scroll; */
+    overflow-x: hidden;
     position: relative;
     height: 100%;
     cursor: crosshair;
@@ -97,14 +97,26 @@
     pointer-events: none;
 }
 
-.rightSidePriceLabel {
+.timeLabel {
+    /* border: 1px solid black; */
+    display: inline-block;
+    position: absolute;
+    font-size: 0.75em;
+}
+
+.timePeriod {
+    background-color: pink;
+    height: 1ch;
+}
+
+.priceLabel {
     position: absolute;
     border: 1px solid transparent;
     pointer-events: none;
     /* opacity: 0; */
 }
 
-.rightSidePriceLabel.hovered {
+.priceLabel.hovered {
     background-color: white;
     border: 1px solid black;
     pointer-events: none;
@@ -112,4 +124,12 @@
 
 .invisible {
     opacity: 0;
+}
+
+.debugPane {
+    float: left;
+}
+
+.isScrolling {
+    cursor: move;
 }
