@@ -35,12 +35,24 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
     top: 0,
   };
 
+  public DateTime = DateTime;
   public timeLabels: Array<DateLabel> = [];
 
   constructor(private tradingService: TradingService, private changeDetectorRef: ChangeDetectorRef) {
     tradingService.response.subscribe((msg)=>this.onMessageFromServer(msg));
 
     // TODO get viewMode from localStorage, so that user preferences are preserved
+
+    let dt:DateTime = DateTime.now().set({minute:0, second:0, millisecond:0});
+    switch(this.viewMode) {
+      case ViewMode.HOURLY:
+        dt = dt.plus({hours: 5});
+      break;
+    case ViewMode.DAILY:
+        dt = dt.plus({days: 5});
+      break;
+    }
+    this.timePeriodsConfig.rightMostPeriod = dt;
   }
 
   ngOnInit(): void {
@@ -232,10 +244,20 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
         TODO render labels relative to the rightmost period
         TODO rendering while scrolling and rendering while still are different
 
+        TODO Remove the bug of changing hours in time labels when adding new labels
+             to the right
+
+        TODO Remove labels to the left when scrolling in the opposite direction
+
+        TODO 
+
+        TODO Remove the bug in which the scroll offset (rightMostOffset) gets reset
+
+
         TODO Consider rendering labels in two passes: one for round values (like 00:00 o'clock or beginning of month for days)
               and the second pass is for the values around them
 
-        TODO rename and adjust usage of some variables
+        DONE rename and adjust usage of some variables
 
      */
     
@@ -243,17 +265,8 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
     this.timeLabels.length = 0;
     let offsetRight = 0;// + this.timePeriodsConfig.rightMostOffset;
     let counter = 0;
-    let dt:DateTime = DateTime.now().set({minute:0, second:0, millisecond:0});
-    switch(this.viewMode) {
-      case ViewMode.HOURLY:
-        dt = dt.plus({hours: 5});
-      break;
-    case ViewMode.DAILY:
-        dt = dt.plus({days: 5});
-      break;
-    }
-    this.timePeriodsConfig.rightMostPeriod = dt;
-
+    //....
+    let dt = this.timePeriodsConfig.rightMostPeriod;
     let labelText = "";
     let labelCenter = this.timePeriodsConfig.timeWidth/2 + this.timePeriodsConfig.rightMostOffset;
 
@@ -272,7 +285,7 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
           break;
       }
       offsetRight = labelCenter-(this.timePeriodsConfig.timeWidth/2);
-      if(offsetRight+(this.timePeriodsConfig.timeWidth/2) > candlesViewPortBoundingBox.width)
+      if(offsetRight > candlesViewPortBoundingBox.width)
         break;
 
       const dateLabel:DateLabel = {
@@ -340,7 +353,7 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
     this.viewMode = ViewMode.HOURLY;
     this.japaneseCandles = this.japaneseCandlesHours;
 
-    this.timePeriodsConfig.rightMostPeriod = DateTime.now().plus({hours: 5});
+    this.timePeriodsConfig.rightMostPeriod = DateTime.now().set({minute:0, second:0, millisecond:0}).plus({hours: 5});
     //TODO round the period down
     this.figureOutTimeLabels();
   }
@@ -349,7 +362,7 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
     this.viewMode = ViewMode.DAILY;
     this.japaneseCandles = this.japaneseCandlesDays;
 
-    this.timePeriodsConfig.rightMostPeriod = DateTime.now().plus({days: 5});
+    this.timePeriodsConfig.rightMostPeriod = DateTime.now().set({minute:0, second:0, millisecond:0}).plus({days: 5});
     //TODO round the period down
     this.figureOutTimeLabels();
   }
@@ -582,6 +595,26 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
   priceVolume_PointerMove(event: PointerEvent) {
     if(this.timePeriodsConfig.isScrolling == true) {
       this.timePeriodsConfig.rightMostOffset = this.timePeriodsConfig.mouseOriginX - event.clientX;
+      if(this.timePeriodsConfig.rightMostOffset > (this.timePeriodsConfig.timeWidth/2) + (this.timePeriodsConfig.timeWidth*2)
+        /*this.timePeriodsConfig.periodPixelLength*/) {
+        const difference = this.timePeriodsConfig.rightMostOffset - this.timePeriodsConfig.periodPixelLength;
+        const periodDifference = Math.ceil(difference / this.timePeriodsConfig.periodPixelLength);
+        const roundedDiff = Math.ceil(difference);
+        const offset = difference - roundedDiff;
+        // console.log("rightMostOffset: "+this.timePeriodsConfig.rightMostOffset+"; difference: "+difference+
+        //            "; roundedDiff: "+roundedDiff+"; offset: "+offset+"; periodDifference: "+periodDifference);
+        switch(this.viewMode) {
+          case ViewMode.HOURLY:
+            // console.log("rightMostPeriod: "+this.timePeriodsConfig.rightMostPeriod);
+            this.timePeriodsConfig.rightMostPeriod = this.timePeriodsConfig.rightMostPeriod.plus({hours: periodDifference});
+            // console.log("rightMostPeriod: "+this.timePeriodsConfig.rightMostPeriod);
+            this.timePeriodsConfig.rightMostOffset = -offset;
+            this.timePeriodsConfig.mouseOriginX = event.clientX - offset;
+            // console.log("rightMostOffset: "+offset);
+            break;
+
+        }
+      }
       this.figureOutTimeLabels();
       this.changeDetectorRef.detectChanges();
     }

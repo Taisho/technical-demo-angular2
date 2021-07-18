@@ -97,6 +97,12 @@
     pointer-events: none;
 }
 
+.timeLabels {
+    position: relative;
+    /* overflow: hidden; */
+    height: 1em;
+}
+
 .timeLabel {
     /* border: 1px solid black; */
     display: inline-block;

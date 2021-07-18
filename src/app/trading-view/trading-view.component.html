@@ -3,6 +3,9 @@
         <div>DateLabelWidth: {{timePeriodsConfig.dateWidth}}</div>
         <div>TimeLabelWidth: {{timePeriodsConfig.timeWidth}}</div>
         <div>rightMostOffset: {{timePeriodsConfig.rightMostOffset}}</div>
+        <div>rightMostPeriod: {{timePeriodsConfig.rightMostPeriod.toLocaleString(DateTime.DATETIME_SHORT)}}</div>
+        <div>periodPixelLength: {{timePeriodsConfig.periodPixelLength}}</div>
+        
     </div>
     <div class="PriceVolumeView">
         <div class="ToolBox">
@@ -53,10 +56,10 @@
         <!-- <div class="timePeriod" *ngFor="let period of timePeriodsConfig.periods" [style.width.px]="timePeriodsConfig.periodPixelLength">
         </div> -->
         <div class="timeLabels">
-            <div class="timeLabel" *ngFor="let label of timeLabels"
-                [style.right.px]="label.right" [class.invisible]="label.invisible">
-                {{label.text}}
-            </div>
+                <div class="timeLabel" *ngFor="let label of timeLabels"
+                    [style.right.px]="label.right" [class.invisible]="label.invisible">
+                    {{label.text}}
+                </div>
         </div>
     </div>
 </div>
