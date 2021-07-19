@@ -1,3 +1,4 @@
+import { THIS_EXPR } from '@angular/compiler/src/output/output_ast';
 import { Component, OnInit, AfterViewInit, ViewChild, ViewChildren, QueryList, ElementRef,
   ChangeDetectorRef } from '@angular/core';
 import { DateTime } from "luxon";
@@ -112,14 +113,14 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
     // }
     this.timeLabels[0] = {
       text: "00/00",
-      timestamp: 0,
+      timestamp: null,
       invisible: true,
       right:0,
       top:0,
     }
     this.timeLabels[1] = {
       text: "00:00",
-      timestamp: 0,
+      timestamp: null,
       invisible: true,
       right:0,
       top:0,
@@ -201,40 +202,44 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
     // }, 0);
   }
 
-  figureOutTimeLabelDivisibility(): number {
-    //let boundingBox = this.candlesViewPort!.nativeElement.getBoundingClientRect();
-    //let timePixelRatio = (this.priceTop - this.priceBottom) / boundingBox.height; // .... 
+  // figureOutTimeLabelDivisibility(): number {
+  //   //let boundingBox = this.candlesViewPort!.nativeElement.getBoundingClientRect();
+  //   //let timePixelRatio = (this.priceTop - this.priceBottom) / boundingBox.height; // .... 
 
-    //don't clutter labels one next to the other. It's gonna appear confusing. 
-    let divisibility = 0;// = this.timeLabelWidth*3;
-    // switch() {
+  //   //don't clutter labels one next to the other. It's gonna appear confusing. 
+  //   let divisibility = 0;// = this.timeLabelWidth*3;
+  //   // switch() {
 
-    // }
+  //   // }
 
-    // Price labels should be divisible by some nice round number, like 10, 100, etc.
-    // let divisibilityStrArr = divisibility.toString().split('.');
-    // // TODO nicely format other prices that have less than 2 digits on the left side of the decimal point.
-    // if(divisibilityStrArr.length == 2) {
-    //   if(divisibilityStrArr[0].length > 1) {
-    //     let divisibilityStr = divisibilityStrArr[0].charAt(0)+"0".repeat(divisibilityStrArr[0].length-1);
-    //     divisibility = parseInt(divisibilityStr);
-    //   }
-    // }
+  //   // Price labels should be divisible by some nice round number, like 10, 100, etc.
+  //   // let divisibilityStrArr = divisibility.toString().split('.');
+  //   // // TODO nicely format other prices that have less than 2 digits on the left side of the decimal point.
+  //   // if(divisibilityStrArr.length == 2) {
+  //   //   if(divisibilityStrArr[0].length > 1) {
+  //   //     let divisibilityStr = divisibilityStrArr[0].charAt(0)+"0".repeat(divisibilityStrArr[0].length-1);
+  //   //     divisibility = parseInt(divisibilityStr);
+  //   //   }
+  //   // }
 
-    return divisibility;
-  }
+  //   return divisibility;
+  // }
 
   public timePeriodsConfig  = {
     //these two get calculated from determineTimeLabelWidth()
-    timeWidth: 0, //the width of labels displaying cl
+    timeWidth: 0, //the width of labels displaying time
     dateWidth: 0, //the width of labels displaying dates
 
     periodPixelLength: 5, // length of a period in pixels
     rightMostPeriod: null as unknown as DateTime,
     rightMostOffset:0, // how much the right most period is scrolled in pixels. Positive value indicate offset to the left, negative one to the right
     //periods: [] as Object[],
+    rightMostLabelAtPeriod: 0, // HERE
+    periodsBetweenLabels: NaN,
+    initialRightMostLabelAtPeriod: NaN, //unused; obsolete
     mouseOriginX: 0,
     isScrolling: false,
+
   }
 
 
@@ -268,11 +273,45 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
     //....
     let dt = this.timePeriodsConfig.rightMostPeriod;
     let labelText = "";
-    let labelCenter = this.timePeriodsConfig.timeWidth/2 + this.timePeriodsConfig.rightMostOffset;
+
+    let labelCenter = 0;// = this.timePeriodsConfig.timeWidth/2 + this.timePeriodsConfig.rightMostOffset;
+    if(false == this.timePeriodsConfig.isScrolling){
+      labelCenter = this.timePeriodsConfig.timeWidth/2 + this.timePeriodsConfig.rightMostOffset;
+      console.log("labelCenter: "+labelCenter+"; periodPixelLength: "+this.timePeriodsConfig.periodPixelLength+"; rightMostOffset: "+this.timePeriodsConfig.rightMostOffset);
+      const period = Math.round((labelCenter / this.timePeriodsConfig.periodPixelLength) - (this.timePeriodsConfig.rightMostOffset/this.timePeriodsConfig.periodPixelLength));
+      this.timePeriodsConfig.rightMostLabelAtPeriod = period;
+      // if(NaN == this.timePeriodsConfig.initialRightMostLabelAtPeriod) {
+      //   this.timePeriodsConfig.initialRightMostLabelAtPeriod
+      // }
+    }
+    else {
+      labelCenter = (this.timePeriodsConfig.rightMostLabelAtPeriod * this.timePeriodsConfig.periodPixelLength) +
+      this.timePeriodsConfig.periodPixelLength / 2 + this.timePeriodsConfig.rightMostOffset;
+      //console.log("labelCenter: "+labelCenter);
+    }
+
+
+    // let labelCenter = this.timePeriodsConfig.timeWidth/2 + this.timePeriodsConfig.rightMostOffset;
+    // if(this.timePeriodsConfig.isScrolling) {
+    //   labelCenter = (this.timePeriodsConfig.rightMostLabelAtPeriod * this.timePeriodsConfig.periodPixelLength) +
+    //   this.timePeriodsConfig.periodPixelLength / 2 + this.timePeriodsConfig.rightMostOffset;
+    //   console.log("labelCenter: "+);
+    // }
 
     do {
       // the center of the label needs to be aligned to the center of the time period.
-      const period = Math.round((labelCenter / this.timePeriodsConfig.periodPixelLength) - (this.timePeriodsConfig.rightMostOffset/this.timePeriodsConfig.periodPixelLength));
+      const period = Math.ceil((labelCenter / this.timePeriodsConfig.periodPixelLength) - (this.timePeriodsConfig.rightMostOffset/this.timePeriodsConfig.periodPixelLength));
+      if(Number.isNaN(this.timePeriodsConfig.initialRightMostLabelAtPeriod) == false &&
+        Number.isNaN(this.timePeriodsConfig.periodsBetweenLabels)) {
+          console.log("rightMostLabelAtPeriod: ", this.timePeriodsConfig.rightMostLabelAtPeriod);
+          this.timePeriodsConfig.periodsBetweenLabels = period - this.timePeriodsConfig.rightMostLabelAtPeriod;
+      }
+
+      if(Number.isNaN(this.timePeriodsConfig.initialRightMostLabelAtPeriod)) {
+        console.log("rightMostLabelAtPeriod: ", this.timePeriodsConfig.initialRightMostLabelAtPeriod);
+        this.timePeriodsConfig.initialRightMostLabelAtPeriod = period;
+      }
+
       //labelCenter = period * this.timePeriodsConfig.periodPixelLength;
       switch(this.viewMode) {
         case ViewMode.HOURLY:
@@ -291,7 +330,7 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
       const dateLabel:DateLabel = {
         text: labelText,
         invisible: false,
-        timestamp: dt.toMillis(),
+        timestamp: dt,
         right: offsetRight,
         top: 0,
       }
@@ -303,31 +342,12 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
       //offsetRight = (this.timePeriodsConfig.timeWidth * counter) + this.timePeriodsConfig.rightMostOffset;
       labelCenter += (this.timePeriodsConfig.timeWidth/2) + (this.timePeriodsConfig.timeWidth*2);
 
-      // switch(this.viewMode) {
-      //   case ViewMode.HOURLY:
-      //     dt = dt.minus({hours: 1});
-      //   break;
-      // case ViewMode.DAILY:
-      //     dt = dt.minus({days: 1});
-      //   break;
-      // }
-
       // TODO remove this condition after the method is bug free
       if(counter > 100)
         break;
       
     } while(true);
   }
-
-  // public figureOutTimePeriods() {
-  //   const candlesViewPort = this.candlesViewPort!.nativeElement.getBoundingClientRect();
-  //   const periods = Math.ceil(candlesViewPort.width * this.timePeriodsConfig.periodPixelLength);
-  //   //const emptyObject = {};
-  //   for(let i=1; i<periods; i++) {
-  //     this.timePeriodsConfig.periods.push(1);
-  //   }
-  //   this.changeDetectorRef.detectChanges();
-  // }
 
   onMessageFromServer(msg: any) {
     switch(msg.response) {
@@ -581,6 +601,7 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
   priceVolume_MouseDown(event: PointerEvent) {
     this.timePeriodsConfig.isScrolling = true;
     this.timePeriodsConfig.mouseOriginX = event.clientX;
+
     ((event as MouseEvent).currentTarget as HTMLElement).onpointermove = (e:PointerEvent)=>this.priceVolume_PointerMove(e);
     ((event as MouseEvent).currentTarget as HTMLElement).setPointerCapture((event as PointerEvent).pointerId);
   }
@@ -592,11 +613,38 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
     ((event as MouseEvent).currentTarget as HTMLElement).releasePointerCapture((event as PointerEvent).pointerId);
   }
 
+  // priceVolume_PointerMove(event: PointerEvent) {
+  //   if(this.timePeriodsConfig.isScrolling == true) {
+  //     this.timePeriodsConfig.rightMostOffset = this.timePeriodsConfig.mouseOriginX - event.clientX;
+  //     if(this.timePeriodsConfig.rightMostOffset > (this.timePeriodsConfig.timeWidth/2) + (this.timePeriodsConfig.timeWidth*2)
+  //       /*this.timePeriodsConfig.periodPixelLength*/) {
+  //       const difference = this.timePeriodsConfig.rightMostOffset - this.timePeriodsConfig.periodPixelLength;
+  //       const periodDifference = Math.ceil(difference / this.timePeriodsConfig.periodPixelLength);
+  //       const roundedDiff = Math.ceil(difference);
+  //       const offset = difference - roundedDiff;
+  //       // console.log("rightMostOffset: "+this.timePeriodsConfig.rightMostOffset+"; difference: "+difference+
+  //       //            "; roundedDiff: "+roundedDiff+"; offset: "+offset+"; periodDifference: "+periodDifference);
+  //       switch(this.viewMode) {
+  //         case ViewMode.HOURLY:
+  //           // console.log("rightMostPeriod: "+this.timePeriodsConfig.rightMostPeriod);
+  //           this.timePeriodsConfig.rightMostPeriod = this.timePeriodsConfig.rightMostPeriod.plus({hours: periodDifference});
+  //           // console.log("rightMostPeriod: "+this.timePeriodsConfig.rightMostPeriod);
+  //           this.timePeriodsConfig.rightMostOffset = -offset;
+  //           this.timePeriodsConfig.mouseOriginX = event.clientX - offset;
+  //           // console.log("rightMostOffset: "+offset);
+  //           break;
+
+  //       }
+  //     }
+  //     this.figureOutTimeLabels();
+  //     this.changeDetectorRef.detectChanges();
+  //   }
+  // }
+
   priceVolume_PointerMove(event: PointerEvent) {
     if(this.timePeriodsConfig.isScrolling == true) {
       this.timePeriodsConfig.rightMostOffset = this.timePeriodsConfig.mouseOriginX - event.clientX;
-      if(this.timePeriodsConfig.rightMostOffset > (this.timePeriodsConfig.timeWidth/2) + (this.timePeriodsConfig.timeWidth*2)
-        /*this.timePeriodsConfig.periodPixelLength*/) {
+      if(this.timePeriodsConfig.rightMostOffset > this.timePeriodsConfig.periodPixelLength) {
         const difference = this.timePeriodsConfig.rightMostOffset - this.timePeriodsConfig.periodPixelLength;
         const periodDifference = Math.ceil(difference / this.timePeriodsConfig.periodPixelLength);
         const roundedDiff = Math.ceil(difference);
@@ -610,9 +658,14 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
             // console.log("rightMostPeriod: "+this.timePeriodsConfig.rightMostPeriod);
             this.timePeriodsConfig.rightMostOffset = -offset;
             this.timePeriodsConfig.mouseOriginX = event.clientX - offset;
+            this.timePeriodsConfig.rightMostLabelAtPeriod += periodDifference;
+            console.log("periodPixelLength: "+this.timePeriodsConfig.periodPixelLength+"; rightMostOffset: "+this.timePeriodsConfig.rightMostOffset);
+            //console.log(this.timePeriodsConfig.periodsBetweenLabels);
+            if(this.timePeriodsConfig.rightMostLabelAtPeriod > this.timePeriodsConfig.periodsBetweenLabels) {
+              this.timePeriodsConfig.rightMostLabelAtPeriod -= this.timePeriodsConfig.periodsBetweenLabels;
+            }
             // console.log("rightMostOffset: "+offset);
             break;
-
         }
       }
       this.figureOutTimeLabels();
@@ -646,7 +699,7 @@ interface PriceLabel {
 
 interface DateLabel {
   text: string;
-  timestamp: number;
+  timestamp: DateTime|null;
   invisible: boolean;
   right: number;
   top: number;
