@@ -14,6 +14,10 @@
             <div>periodsBetweenLabels: {{timePeriodsConfig.periodsBetweenLabels}}</div>
             <div>pixelsBetweenLabels: {{timePeriodsConfig.periodsBetweenLabels * timePeriodsConfig.periodPixelLength}}</div>
             <div>mouseOriginX: {{timePeriodsConfig.mouseOriginX}}</div>
+            <button (click)="forceAlignCandlesWithTimePeriods()">forceAlignCandlesWithTimePeriods()</button>
+            <br>
+            <button (click)="figureOutTimeLabels()">figureOutTimeLabels()</button>
+
         </div>
     </div>
     <div class="PriceVolumeView">
@@ -83,6 +87,11 @@
                     [style.right.px]="label.right" [class.invisible]="label.invisible">
                     {{label.text}}
                 </div>
+                <div #hoverTimeLabel class="timeLabel hovered"
+                [style.left.px]="hoverTimeLabelConfig.left" [style.top.px]="hoverTimeLabelConfig.top"
+                [class.invisible]="hoverTimeLabelConfig.invisible">
+                {{hoverTimeLabelConfig.text}}
+            </div>
         </div>
     </div>
 </div>

@@ -43,6 +43,14 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
     top: 0,
   };
 
+  public hoverTimeLabelConfig: TimeLabel = {
+    text: "0",
+    value: 0,
+    invisible: true,
+    left: 0,
+    top: 0,
+  };
+
   public DateTime = DateTime;
   public timeLabels: Array<DateLabel> = [];
 
@@ -102,6 +110,8 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
         this.volumeColumns.push(column);
     }
   }
+
+  // TODO 
 
   ngOnInit(): void {
     // Fetch historical price data and then subscribe for real time price changes
@@ -187,7 +197,7 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
     this.figureOutPriceLabels();
 
     //TODO scale and reposition candles
-    //this.repositionCandles();
+    this.repositionCandles();
   }
 
 
@@ -196,6 +206,8 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
     y: 0,
     show: false,
     viewPort: ViewPort.PRICE,
+    period: 0,
+    dateTime: null as unknown as DateTime,
   }
   public enumViewPort = ViewPort;
   moveCrossHair(event: MouseEvent, viewPort: ViewPort) {
@@ -207,6 +219,7 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
     //   return;
     // }
     this.crosshair.viewPort = viewPort;
+    const containerBoundingBox = this.candlesViewPort!.nativeElement.getBoundingClientRect();
 
     //console.log(event.clientY);
     this.crosshair.y = event.clientY - boundingBox.y;
@@ -216,11 +229,6 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
     const leftDiff = crosshairX - alignedXLeft;
     const rightDiff = alignedXRight - crosshairX;
 
-    //console.log("crosshair.x: "+crosshairX, "; alignedX: "+alignedXLeft
-    //  , "; modulo: ", crosshairX % this.timePeriodsConfig.periodPixelLength);
-    //if(leftDiff < 2) {
-      //console.log("(no alignemnt) this.crosshair.x: "+crosshair.x+"; leftDiff: "+leftDiff+"; rightDiff: "+rightDiff);
-    //}
     if(leftDiff < rightDiff) {
       crosshairX = alignedXLeft;// - (this.timePeriodsConfig.periodPixelLength/2) - 1;
       this.crosshair.x = crosshairX;
@@ -230,20 +238,53 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
       this.crosshair.x = alignedXRight;// - (this.timePeriodsConfig.periodPixelLength/2) - 1;
       //console.log("(right alignment) this.crosshair.x: "+crosshair.x+"; leftDiff: "+leftDiff+"; rightDiff: "+rightDiff);
     }
+    const crosshairXRight = containerBoundingBox.width - this.crosshair.x;
+    const periodDiff = Math.ceil((containerBoundingBox.width - this.crosshair.x) / this.timePeriodsConfig.periodPixelLength);
+    //console.log("crosshairXRight: "+crosshairXRight);
+    const newPeriod = this.timePeriodsConfig.rightMostPeriod.minus({hours: periodDiff});
+    //console.log("periodDiff: "+periodDiff+"; newPeriod: "+newPeriod.toLocaleString(DateTime.DATETIME_SHORT));
+    this.crosshair.dateTime = newPeriod; //.minus({hours: });
     
-    
-
-    //this.crosshair.y -= this.crosshair.y % this.timePeriodsConfig.periodPixelLength;
     this.crosshair.show = true;
 
     if(viewPort == ViewPort.PRICE)
       this.showHoveredPriceLabel();
+
+    this.showHoveredTimeLabel();
   }
 
   hideCrossHair(event?: MouseEvent) {
     //console.log("mouse leave event");
     this.crosshair.show = false;
     this.hoverPriceLabelConfig.invisible = true;
+    this.hoverTimeLabelConfig.invisible = true;
+  }
+
+  @ViewChild('hoverTimeLabel') public hoverTimeLabel!: ElementRef;
+  showHoveredTimeLabel() {
+    if(this.timePeriodsConfig.timeWidth <= 0)
+      return;
+    
+    this.hoverTimeLabelConfig.invisible = false;
+    this.hoverTimeLabelConfig.left = this.crosshair.x - (this.timePeriodsConfig.timeWidth/2);
+
+    //const priceVeiwNative = document.querySelector(".PriceVolumeView") as HTMLElement;
+    const containerBoundingBox = this.candlesContainerNative!.getBoundingClientRect();
+    //let pixelPriceRatio = (this.priceTop - this.priceBottom) / containerBoundingBox.height;
+    //const priceViewBoundingBox = priceVeiwNative.getBoundingClientRect();
+
+    //let priceHovered = ((this.priceTop - (this.crosshair.y * pixelPriceRatio)));// - this.priceLabelHeight/2;//(this.priceLabelHeight*i)+labelsTopOffset;
+    const dateTime = this.timePeriodsConfig.rightMostPeriod;
+    // const dateTime = this.timePeriodsConfig.rightMostPeriod.minus(
+    //   {hours: Math.ceil(
+    //     (containerBoundingBox.width - this.crosshair.x) /
+    //     this.timePeriodsConfig.periodPixelLength)});
+
+    this.hoverTimeLabelConfig.text = this.crosshair.dateTime.toLocaleString(DateTime.DATETIME_SHORT);
+    //console.log("hoverTimeLabelConfig.text: "+this.hoverTimeLabelConfig.text);
+    this.changeDetectorRef.detectChanges();
+    //const hoverPriceBox = this.hoverPriceLabel?.nativeElement.getBoundingClientRect();
+    //this.hoverPriceLabelConfig.right = -hoverPriceBox.width;
   }
 
   @ViewChild('hoverPriceLabel') public hoverPriceLabel!: ElementRef;
@@ -318,6 +359,7 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
     mouseOriginX: 0,
     mouseOriginXViewPortScroll: 0,
     isScrolling: false,
+    scrollLeft: 0,
     keyCandle: null as unknown as Candle,
     firstCall: true, // this is very hackish, but makes things work smoothly :)
   }
@@ -353,7 +395,10 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
 
     let labelCenter = 0;
     if(true == this.timePeriodsConfig.firstCall){
-      labelCenter = this.timePeriodsConfig.timeWidth/2 + this.timePeriodsConfig.rightMostOffset;
+      const dt12oclock = this.yieldNearest12oclock(dt);
+      labelCenter = (((this.timePeriodsConfig.rightMostPeriod.toMillis() - dt12oclock.toMillis())/3600000)*this.timePeriodsConfig.periodPixelLength) +
+          (this.timePeriodsConfig.timeWidth/2 + this.timePeriodsConfig.rightMostOffset);
+      console.log("labelCenter: "+labelCenter);
       //console.log("labelCenter: "+labelCenter+"; periodPixelLength: "+this.timePeriodsConfig.periodPixelLength+"; rightMostOffset: "+this.timePeriodsConfig.rightMostOffset);
       const period = Math.ceil((labelCenter / this.timePeriodsConfig.periodPixelLength) - (this.timePeriodsConfig.rightMostOffset/this.timePeriodsConfig.periodPixelLength));
       this.timePeriodsConfig.rightMostLabelAtPeriod = period;
@@ -389,12 +434,12 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
       
       if(Number.isNaN(this.timePeriodsConfig.initialRightMostLabelAtPeriod) == false &&
         Number.isNaN(this.timePeriodsConfig.periodsBetweenLabels)) {
-          console.log("rightMostLabelAtPeriod: ", this.timePeriodsConfig.rightMostLabelAtPeriod);
+          console.log(">rightMostLabelAtPeriod: ", this.timePeriodsConfig.rightMostLabelAtPeriod);
           this.timePeriodsConfig.periodsBetweenLabels = period - this.timePeriodsConfig.rightMostLabelAtPeriod;
       }
 
       if(Number.isNaN(this.timePeriodsConfig.initialRightMostLabelAtPeriod)) {
-        console.log("rightMostLabelAtPeriod: ", this.timePeriodsConfig.initialRightMostLabelAtPeriod);
+        console.log("^rightMostLabelAtPeriod: ", this.timePeriodsConfig.initialRightMostLabelAtPeriod);
         this.timePeriodsConfig.initialRightMostLabelAtPeriod = period;
       }
 
@@ -435,6 +480,7 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
     } while(true);
     this.timePeriodsConfig.firstCall = false;
   }
+
 
   onMessageFromServer(msg: any) {
     switch(msg.response) {
@@ -508,6 +554,34 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
         this.priceBottom = priceBottom;
     }
 
+    
+
+      this.changeDetectorRef.detectChanges();
+      // setTimeout(()=>{
+      //   // adjust candles' view port to display most recent price candles
+        this.candlesViewPort?.nativeElement.scroll({
+          left: this.candlesContainerConfig.width
+        });
+
+        console.clear();
+        console.log("elementScrollLeft: "+this.candlesViewPort?.nativeElement.scrollLeft);
+      //   this.repositionCandles();
+      // }, 0);
+
+      setTimeout(()=>{
+        this.repositionCandles();
+        this.timePeriodsConfig.keyCandle = this.japaneseCandles[this.japaneseCandles.length-1];
+        this.timePeriodsConfig.keyCandle.isKey = true;
+        this.alignCandlesWithTimePeriods();
+        this.timePeriodsConfig.keyCandle.isKey = false;
+      }, 0);
+
+    this.figureOutPriceLabels();
+  }
+
+  repositionCandles() {
+    const candles = this.japaneseCandles;
+
     const containerBoundingBox = this.candlesContainerNative!.getBoundingClientRect();
     let pixelPriceRatio = containerBoundingBox.height / (this.priceTop - this.priceBottom);
 
@@ -533,45 +607,8 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
         candle.height = 25;
         candle.offsetTop = ((pixelPriceRatio * this.priceTop) - (candle.priceClose * pixelPriceRatio));
       }
-      
     }
-
-      this.changeDetectorRef.detectChanges();
-      // setTimeout(()=>{
-      //   // adjust candles' view port to display most recent price candles
-        this.candlesViewPort?.nativeElement.scroll({
-          left: this.candlesContainerConfig.width
-        });
-
-        console.clear();
-        console.log("elementScrollLeft: "+this.candlesViewPort?.nativeElement.scrollLeft);
-      //   this.repositionCandles();
-      // }, 0);
-
-      setTimeout(()=>{
-        this.timePeriodsConfig.keyCandle = this.japaneseCandles[this.japaneseCandles.length-1];
-        this.timePeriodsConfig.keyCandle.isKey = true;
-        this.alignCandlesWithTimePeriods();
-        this.timePeriodsConfig.keyCandle.isKey = false;
-      }, 0);
-
-    this.figureOutPriceLabels();
   }
-
-  // repositionCandles() {
-  //   const candles = this.japaneseCandles;
-  //   let boundingBox = this.candlesContainerNative!.getBoundingClientRect();
-  //   if(boundingBox == null) {
-  //     console.error("repositionCandles: candlesViewPort's boundingBox is null!");
-  //   }
-
-  //   let pricePixelRatio = boundingBox.height / (this.priceTop - this.priceBottom);
-  //   for(let i=0; i<candles.length; i++) {
-  //     let candle = candles[i];
-  //     if(candle.condensed == true)
-  //       candle.offsetTop = boundingBox.height - (candle.priceClose * pricePixelRatio);
-  //   }
-  // }
 
   public priceLabels:Array<PriceLabel> = [];
   public candlesContainerNative!: HTMLElement|null;
@@ -715,6 +752,16 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
     this.timePeriodsConfig.keyCandle.isKey = true;
   } 
 
+  yieldNearest12oclock(dt: DateTime) {
+    //const diff = dt.hour % 12;
+    return dt.minus({hours: dt.hour % 12});
+  }
+
+  forceAlignCandlesWithTimePeriods() {
+    this.timePeriodsConfig.rightMostOffset = 0;
+    this.alignCandlesWithTimePeriods();
+  }
+
   alignCandlesWithTimePeriods() {
     this.changeDetectorRef.detectChanges();
     const viewPortBox = this.candlesViewPort.nativeElement.getBoundingClientRect();
@@ -723,30 +770,35 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
     const candleDateTime = DateTime.fromMillis(candleTimestamp);
 
     const candleBox = candle?.getBoundingClientRect();
-    const verticalAxis = (candleBox!.x + Math.ceil(candleBox!.width/2)) - viewPortBox.x;
+    const verticalAxis = (candleBox!.x + Math.round(candleBox!.width/2)) - viewPortBox.x;
+
+    // TODO align vertical axis to the center of time period. This means we would need to adjust rightMostOffset
+    // TODO get new key candle every time the current one gets out of the screen
 
     const periodOffset = viewPortBox.width - verticalAxis - this.timePeriodsConfig.rightMostOffset;
+    const rightMostOffsetAdjustment = periodOffset % this.timePeriodsConfig.periodPixelLength
+    //this.timePeriodsConfig.rightMostOffset += rightMostOffsetAdjustment;
     const periodBelowCandle = Math.round(periodOffset / this.timePeriodsConfig.periodPixelLength);
 
     let periodDateTime = this.timePeriodsConfig.rightMostPeriod.minus({hours: periodBelowCandle});
 
     if(candleDateTime.toMillis() == periodDateTime.toMillis()) {
-      console.log("key period aligned to key candle");
+      // console.log("key period aligned to key candle");
     }
     else if(candleDateTime.toMillis() > periodDateTime.toMillis()) {
       let adjustmentPeriods = Math.ceil((candleDateTime.toMillis() - periodDateTime.toMillis()) / 3600000);
 
       this.timePeriodsConfig.rightMostPeriod = this.timePeriodsConfig.rightMostPeriod.plus({hours:adjustmentPeriods});
-      console.log("adjustmentPeriods: +"+adjustmentPeriods+
-      "; rightMostPeriod: "+this.timePeriodsConfig.rightMostPeriod.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS)+
-      "; candle: "+candleDateTime.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS));
+      // console.log("adjustmentPeriods: +"+adjustmentPeriods+
+      // "; rightMostPeriod: "+this.timePeriodsConfig.rightMostPeriod.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS)+
+      // "; candle: "+candleDateTime.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS));
     }
     else /*if(candleDateTime.toMillis() < periodDateTime.toMillis())*/ {
       let adjustmentPeriods = Math.ceil((periodDateTime.toMillis() - candleDateTime.toMillis()) / 3600000);
       this.timePeriodsConfig.rightMostPeriod = this.timePeriodsConfig.rightMostPeriod.minus({hours:adjustmentPeriods});
-      console.log("adjustmentPeriods: -"+adjustmentPeriods+
-      "; rightMostPeriod: "+this.timePeriodsConfig.rightMostPeriod.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS)+
-      "; candle: "+candleDateTime.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS));  
+      // console.log("adjustmentPeriods: -"+adjustmentPeriods+
+      // "; rightMostPeriod: "+this.timePeriodsConfig.rightMostPeriod.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS)+
+      // "; candle: "+candleDateTime.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS));  
     }
 
     this.changeDetectorRef.detectChanges();
@@ -755,6 +807,7 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
 
   priceVolume_MouseDown(event: PointerEvent) {
     this.timePeriodsConfig.isScrolling = true;
+    this.timePeriodsConfig.scrollLeft = this.candlesViewPort?.nativeElement.scrollLeft;
     this.timePeriodsConfig.mouseOriginX = event.clientX;
     this.timePeriodsConfig.mouseOriginXViewPortScroll = event.clientX;
 
@@ -771,7 +824,11 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
     ((event as MouseEvent).currentTarget as HTMLElement).onpointermove = null;
     ((event as MouseEvent).currentTarget as HTMLElement).releasePointerCapture((event as PointerEvent).pointerId);
   
-    this.timePeriodsConfig.keyCandle.isKey = false;
+    setTimeout(()=> {
+      this.alignCandlesWithTimePeriods();
+      this.timePeriodsConfig.keyCandle.isKey = false;
+    }, 200)
+
   }
 
   priceVolume_ScrollSideways(event: PointerEvent) {
@@ -793,8 +850,11 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
 
       // TODO Try to do subpixel scrolling
       const maxScrollLeft = this.candlesViewPort?.nativeElement.scrollWidth - this.candlesViewPort?.nativeElement.clientWidth;
-      let viewPortScroll = maxScrollLeft - (event.clientX - this.timePeriodsConfig.mouseOriginXViewPortScroll);
+      let viewPortScroll = this.timePeriodsConfig.scrollLeft - (event.clientX - this.timePeriodsConfig.mouseOriginXViewPortScroll);
+      //let viewPortScroll = maxScrollLeft - (event.clientX - this.timePeriodsConfig.mouseOriginXViewPortScroll);
 
+
+      console.log("maxScrollLeft: "+maxScrollLeft+"; viewPortScroll: "+viewPortScroll);
       //return;
       if(viewPortScroll > maxScrollLeft) {
         //console.log("(underscroll) viewPortScroll: "+viewPortScroll+", maxScrollLeft: "+maxScrollLeft);
@@ -888,6 +948,14 @@ interface PriceLabel {
   value: number;
   invisible: boolean;
   right: number;
+  top: number;
+}
+
+interface TimeLabel {
+  text: string;
+  value: number;
+  invisible: boolean;
+  left: number;
   top: number;
 }
 
