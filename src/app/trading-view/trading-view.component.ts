@@ -1,12 +1,18 @@
 import { THIS_EXPR } from '@angular/compiler/src/output/output_ast';
 import { Component, OnInit, AfterViewInit, ViewChild, ViewChildren, QueryList, ElementRef,
   ChangeDetectorRef } from '@angular/core';
+import { vi } from 'date-fns/locale';
 import { DateTime } from "luxon";
 import { TradingService } from 'services/trading.service';
 
 enum ViewMode {
   HOURLY,
   DAILY,
+}
+
+enum ViewPort {
+  PRICE,
+  VOLUME
 }
 
 @Component({
@@ -19,9 +25,10 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
   public priceTop: number = 0;
   public priceBottom: number = 0;
 
-  public japaneseCandles: Array<any> = []; // used by the template
-  public japaneseCandlesHours: Array<any> = [];
-  public japaneseCandlesDays: Array<any> = [];
+  public japaneseCandles: Array<Candle> = []; // used by the template
+  public japaneseCandlesHours: Array<Candle> = [];
+  public japaneseCandlesDays: Array<Candle> = [];
+  public volumeColumns: Array<any> = [];
 
   public enumViewMode = ViewMode;
   public viewMode = ViewMode.HOURLY;
@@ -54,6 +61,46 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
       break;
     }
     this.timePeriodsConfig.rightMostPeriod = dt;
+
+    this.generateDummyVolumeData();
+    this.expandVolumeColumns();
+  }
+
+  public dummyVolume = [
+    1987345677,
+    1387345677,
+    1587345677,
+    1487345677,
+    1587345677,
+    1587345677,
+    1517345677,
+    1547345677,
+    1087345677,
+    1287345677,
+  ];
+  public volumeData: Array<any> = [];
+  // Obviosly this is needed only durin development
+  generateDummyVolumeData() {
+    let date = DateTime.now().set({minute:0, second:0, millisecond:0});
+    for(let i=0; i<this.dummyVolume.length; i++) {
+      const volume = {
+        timestamp: date,
+        value: this.dummyVolume[i],
+      }
+      date = date.minus({hours: 1});
+      this.volumeData.push(volume);
+    }
+  }
+
+  public volumeTop = 0;
+  public volumeBottom = 0;
+  expandVolumeColumns() {
+    for(let i=0; i<this.volumeData.length; i++) {
+        const column = {
+
+        };
+        this.volumeColumns.push(column);
+    }
   }
 
   ngOnInit(): void {
@@ -78,6 +125,7 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
     this.determineTimeLabelWidth();
 
     this.figureOutTimeLabels();
+
     //this.figureOutTimePeriods();
   }
 
@@ -129,39 +177,72 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
     this.changeDetectorRef.detectChanges();
     let timeLabel = document.querySelectorAll(".timeLabel");
     let bbox = timeLabel[0].getBoundingClientRect();
-    this.timePeriodsConfig.timeWidth = bbox.width;
+    this.timePeriodsConfig.timeWidth = Math.ceil(bbox.width);
     bbox = timeLabel[1].getBoundingClientRect();
-    this.timePeriodsConfig.dateWidth = bbox.width;
+    this.timePeriodsConfig.dateWidth = Math.ceil(bbox.width);
   }
 
   onPriceChartResize(entries: ResizeObserverEntry[], observer: ResizeObserver) {
     let entry = entries[entries.length-1];
     this.figureOutPriceLabels();
 
+    //TODO scale and reposition candles
     //this.repositionCandles();
   }
 
-  public crosshairX = 0;
-  public crosshairY = 0;
-  public showCrosshair = false;
-  onMouseMove(event: MouseEvent) {
-    this.showCrosshair = true;
+
+  public crosshair = {
+    x: 0,
+    y: 0,
+    show: false,
+    viewPort: ViewPort.PRICE,
+  }
+  public enumViewPort = ViewPort;
+  moveCrossHair(event: MouseEvent, viewPort: ViewPort) {
+    
     let element = event.currentTarget as HTMLElement;
     let boundingBox = element.getBoundingClientRect();
     // if(event.clientY > boundingBox.y+element.clientHeight){
     //   this.hideCrossHair();
     //   return;
     // }
+    this.crosshair.viewPort = viewPort;
 
+    //console.log(event.clientY);
+    this.crosshair.y = event.clientY - boundingBox.y;
+    let crosshairX = event.clientX - boundingBox.x;
+    const alignedXLeft = crosshairX - (crosshairX % this.timePeriodsConfig.periodPixelLength) - (parseFloat(this.timePeriodsConfig.periodPixelLength.toString())/2);
+    const alignedXRight = alignedXLeft+this.timePeriodsConfig.periodPixelLength;
+    const leftDiff = crosshairX - alignedXLeft;
+    const rightDiff = alignedXRight - crosshairX;
+
+    //console.log("crosshair.x: "+crosshairX, "; alignedX: "+alignedXLeft
+    //  , "; modulo: ", crosshairX % this.timePeriodsConfig.periodPixelLength);
+    //if(leftDiff < 2) {
+      //console.log("(no alignemnt) this.crosshair.x: "+crosshair.x+"; leftDiff: "+leftDiff+"; rightDiff: "+rightDiff);
+    //}
+    if(leftDiff < rightDiff) {
+      crosshairX = alignedXLeft;// - (this.timePeriodsConfig.periodPixelLength/2) - 1;
+      this.crosshair.x = crosshairX;
+      //console.log("(left alignment) this.crosshair.x: "+crosshair.x+"; leftDiff: "+leftDiff+"; rightDiff: "+rightDiff);
+    }
+    else {
+      this.crosshair.x = alignedXRight;// - (this.timePeriodsConfig.periodPixelLength/2) - 1;
+      //console.log("(right alignment) this.crosshair.x: "+crosshair.x+"; leftDiff: "+leftDiff+"; rightDiff: "+rightDiff);
+    }
     
-    this.crosshairX = event.clientX - boundingBox.x;
-    this.crosshairY = event.clientY - boundingBox.y;
+    
 
-    this.showHoveredPriceLabel();
+    //this.crosshair.y -= this.crosshair.y % this.timePeriodsConfig.periodPixelLength;
+    this.crosshair.show = true;
+
+    if(viewPort == ViewPort.PRICE)
+      this.showHoveredPriceLabel();
   }
 
   hideCrossHair(event?: MouseEvent) {
-    this.showCrosshair = false;
+    //console.log("mouse leave event");
+    this.crosshair.show = false;
     this.hoverPriceLabelConfig.invisible = true;
   }
 
@@ -171,7 +252,7 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
       return;
     
     this.hoverPriceLabelConfig.invisible = false;
-    this.hoverPriceLabelConfig.top = this.crosshairY - (this.priceLabelHeight/2);
+    this.hoverPriceLabelConfig.top = this.crosshair.y - (this.priceLabelHeight/2);
 
     //const priceVeiwNative = document.querySelector(".PriceVolumeView") as HTMLElement;
     const containerBoundingBox = this.candlesContainerNative!.getBoundingClientRect();
@@ -182,13 +263,13 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
     // relative to the CandlesContainer
     //const labelsTopOffset = containerBoundingBox.top - priceViewBoundingBox.top;
 
-    let priceHovered = ((this.priceTop - (this.crosshairY * pixelPriceRatio)));// - this.priceLabelHeight/2;//(this.priceLabelHeight*i)+labelsTopOffset;
-    //console.log("this.crosshairY: ", this.crosshairY);
+    let priceHovered = ((this.priceTop - (this.crosshair.y * pixelPriceRatio)));// - this.priceLabelHeight/2;//(this.priceLabelHeight*i)+labelsTopOffset;
+    //console.log("this.crosshair.y: ", this.crosshair.y);
     //console.log("pricePixelRatio: ", pixelPriceRatio);
     //console.log("");
 
     
-    //(this.crosshairY * pricePixelRatio)
+    //(this.crosshair.y * pricePixelRatio)
     
     //(((pricePixelRatio * this.priceTop) - (priceLabel.value * pricePixelRatio))+labelsTopOffset) - this.priceLabelHeight/2;//(this.priceLabelHeight*i)+labelsTopOffset;
 
@@ -202,28 +283,25 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
     // }, 0);
   }
 
-  // figureOutTimeLabelDivisibility(): number {
-  //   //let boundingBox = this.candlesViewPort!.nativeElement.getBoundingClientRect();
-  //   //let timePixelRatio = (this.priceTop - this.priceBottom) / boundingBox.height; // .... 
+  public periods:Array<any> = [];
+  public figureOutVisiblePeriods(labelCenter:number) {
+    this.periods.length = 0;
+    const candlesViewPortBoundingBox = this.candlesViewPort!.nativeElement.getBoundingClientRect();
+    let periodRight = Math.ceil(labelCenter % this.timePeriodsConfig.periodPixelLength);
+    const visiblePeriods = candlesViewPortBoundingBox.width / this.timePeriodsConfig.periodPixelLength;
+    let atLabel = false;
+    for(let i=1; i<visiblePeriods; i++) {
+      atLabel = i%this.timePeriodsConfig.periodsBetweenLabels == this.timePeriodsConfig.rightMostLabelAtPeriod;
+        
+      this.periods.push({
+        right: periodRight,
+        atLabel: atLabel
+      });
 
-  //   //don't clutter labels one next to the other. It's gonna appear confusing. 
-  //   let divisibility = 0;// = this.timeLabelWidth*3;
-  //   // switch() {
+      periodRight += this.timePeriodsConfig.periodPixelLength;
+    }
+  }
 
-  //   // }
-
-  //   // Price labels should be divisible by some nice round number, like 10, 100, etc.
-  //   // let divisibilityStrArr = divisibility.toString().split('.');
-  //   // // TODO nicely format other prices that have less than 2 digits on the left side of the decimal point.
-  //   // if(divisibilityStrArr.length == 2) {
-  //   //   if(divisibilityStrArr[0].length > 1) {
-  //   //     let divisibilityStr = divisibilityStrArr[0].charAt(0)+"0".repeat(divisibilityStrArr[0].length-1);
-  //   //     divisibility = parseInt(divisibilityStr);
-  //   //   }
-  //   // }
-
-  //   return divisibility;
-  // }
 
   public timePeriodsConfig  = {
     //these two get calculated from determineTimeLabelWidth()
@@ -234,30 +312,29 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
     rightMostPeriod: null as unknown as DateTime,
     rightMostOffset:0, // how much the right most period is scrolled in pixels. Positive value indicate offset to the left, negative one to the right
     //periods: [] as Object[],
-    rightMostLabelAtPeriod: 0, // HERE
+    rightMostLabelAtPeriod: 0,
     periodsBetweenLabels: NaN,
     initialRightMostLabelAtPeriod: NaN, //unused; obsolete
     mouseOriginX: 0,
+    mouseOriginXViewPortScroll: 0,
     isScrolling: false,
-
+    keyCandle: null as unknown as Candle,
+    firstCall: true, // this is very hackish, but makes things work smoothly :)
   }
-
 
   //public timeLabelWidth = 0;
   public figureOutTimeLabels() {
+    
     /*
-        TODO render labels relative to the rightmost period
-        TODO rendering while scrolling and rendering while still are different
+        DONE render labels relative to the rightmost period
+        DONE rendering while scrolling and rendering while still are different
 
-        TODO Remove the bug of changing hours in time labels when adding new labels
+        DONE Remove the bug of changing hours in time labels when adding new labels
              to the right
 
-        TODO Remove labels to the left when scrolling in the opposite direction
+        DONE Remove labels to the left when scrolling in the opposite direction
 
-        TODO 
-
-        TODO Remove the bug in which the scroll offset (rightMostOffset) gets reset
-
+        DONE Remove the bug in which the scroll offset (rightMostOffset) gets reset
 
         TODO Consider rendering labels in two passes: one for round values (like 00:00 o'clock or beginning of month for days)
               and the second pass is for the values around them
@@ -274,12 +351,13 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
     let dt = this.timePeriodsConfig.rightMostPeriod;
     let labelText = "";
 
-    let labelCenter = 0;// = this.timePeriodsConfig.timeWidth/2 + this.timePeriodsConfig.rightMostOffset;
-    if(false == this.timePeriodsConfig.isScrolling){
+    let labelCenter = 0;
+    if(true == this.timePeriodsConfig.firstCall){
       labelCenter = this.timePeriodsConfig.timeWidth/2 + this.timePeriodsConfig.rightMostOffset;
-      console.log("labelCenter: "+labelCenter+"; periodPixelLength: "+this.timePeriodsConfig.periodPixelLength+"; rightMostOffset: "+this.timePeriodsConfig.rightMostOffset);
-      const period = Math.round((labelCenter / this.timePeriodsConfig.periodPixelLength) - (this.timePeriodsConfig.rightMostOffset/this.timePeriodsConfig.periodPixelLength));
+      //console.log("labelCenter: "+labelCenter+"; periodPixelLength: "+this.timePeriodsConfig.periodPixelLength+"; rightMostOffset: "+this.timePeriodsConfig.rightMostOffset);
+      const period = Math.ceil((labelCenter / this.timePeriodsConfig.periodPixelLength) - (this.timePeriodsConfig.rightMostOffset/this.timePeriodsConfig.periodPixelLength));
       this.timePeriodsConfig.rightMostLabelAtPeriod = period;
+      //console.log("labelCenter (not scrolling): "+labelCenter);
       // if(NaN == this.timePeriodsConfig.initialRightMostLabelAtPeriod) {
       //   this.timePeriodsConfig.initialRightMostLabelAtPeriod
       // }
@@ -287,7 +365,7 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
     else {
       labelCenter = (this.timePeriodsConfig.rightMostLabelAtPeriod * this.timePeriodsConfig.periodPixelLength) +
       this.timePeriodsConfig.periodPixelLength / 2 + this.timePeriodsConfig.rightMostOffset;
-      //console.log("labelCenter: "+labelCenter);
+      //console.log("labelCenter (scrolling): "+labelCenter);
     }
 
 
@@ -298,9 +376,17 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
     //   console.log("labelCenter: "+);
     // }
 
+    //this.figureOutVisiblePeriods(labelCenter);
+
     do {
       // the center of the label needs to be aligned to the center of the time period.
-      const period = Math.ceil((labelCenter / this.timePeriodsConfig.periodPixelLength) - (this.timePeriodsConfig.rightMostOffset/this.timePeriodsConfig.periodPixelLength));
+      const period = Math.ceil((labelCenter / this.timePeriodsConfig.periodPixelLength) - (Math.floor(this.timePeriodsConfig.rightMostOffset)/this.timePeriodsConfig.periodPixelLength));
+      if(counter == 0) {
+        //;
+        //console.log("labelCenter: "+labelCenter+", rightMostOffset/periodPixelLength: "+(Math.floor(this.timePeriodsConfig.rightMostOffset)/this.timePeriodsConfig.periodPixelLength));
+      }
+      
+      
       if(Number.isNaN(this.timePeriodsConfig.initialRightMostLabelAtPeriod) == false &&
         Number.isNaN(this.timePeriodsConfig.periodsBetweenLabels)) {
           console.log("rightMostLabelAtPeriod: ", this.timePeriodsConfig.rightMostLabelAtPeriod);
@@ -342,11 +428,12 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
       //offsetRight = (this.timePeriodsConfig.timeWidth * counter) + this.timePeriodsConfig.rightMostOffset;
       labelCenter += (this.timePeriodsConfig.timeWidth/2) + (this.timePeriodsConfig.timeWidth*2);
 
-      // TODO remove this condition after the method is bug free
-      if(counter > 100)
-        break;
+      // // TODO remove this condition after the method is bug free
+      // if(counter > 100)
+      //   break;
       
     } while(true);
+    this.timePeriodsConfig.firstCall = false;
   }
 
   onMessageFromServer(msg: any) {
@@ -359,10 +446,10 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
         }
 
         this.japaneseCandlesHours.length = 0;
-        msg.data = msg.data.slice(Math.max(msg.data.length - 100, 1))
+        msg.data = msg.data.slice(Math.max(msg.data.length - 200, 1))
         this.expandCandles(msg.data);  //msg.data gets modified here
         this.japaneseCandlesHours.push(...msg.data);
-        console.log("Response from websocket:", msg);
+        //console.log("Response from websocket:", msg);
         this.toggleHourView();
         break;
 
@@ -375,6 +462,11 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
 
     this.timePeriodsConfig.rightMostPeriod = DateTime.now().set({minute:0, second:0, millisecond:0}).plus({hours: 5});
     //TODO round the period down
+    // the following lines are a hack. Keep them here
+    // this.timePeriodsConfig.isScrolling = true;
+    // this.timePeriodsConfig.rightMostOffset = 1;
+    // this.figureOutTimeLabels();
+    // this.timePeriodsConfig.isScrolling = false;
     this.figureOutTimeLabels();
   }
 
@@ -387,39 +479,26 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
     this.figureOutTimeLabels();
   }
 
+  public showDebugInfo = true;
+  toggleDebugInfo() {
+    this.showDebugInfo = !this.showDebugInfo;
+  }
+
   public candlesContainerConfig = {width: 0};
   @ViewChild('CandlesViewPort') public candlesViewPort!: ElementRef;
   /**
    *  Since we are iterating over all candles, we can determine the price bottom and top here
    * 
+   * TODO keep only a subset of candles for viewing. Like 3 screens at a time (1 screen to the left, one to the right and one at the middle )
+   * 
+   * 
    * @param candles 
    */
-  expandCandles(candles: Array<any>) {
+  expandCandles(candles: Array<Candle>) {
 
-    const containerBoundingBox = this.candlesContainerNative!.getBoundingClientRect();
-    let pixelPriceRatio = containerBoundingBox.height / (this.priceTop - this.priceBottom);
-
-    let now = new Date();
-    let currentHour = now.getUTCHours();
-    let candleOffset = 0;
+    // Iterate over the candles once in order to determine the top and bottom prices
     for(let i=0; i<candles.length; i++) {
       let candle = candles[i];
-      let candleDate = new Date(candle.timestamp);
-      let mday:string|number = candleDate.getUTCDate(); mday = mday < 10 ? "0"+mday : mday.toString();
-      let month:string|number = candleDate.getUTCMonth(); month = month < 10 ? "0"+month : month.toString();
-      //let hour:string|number = candleDate.getUTCHours();
-      
-
-      candle.dateTime = month+"/"+mday;
-      let hourDifference = Math.floor((now.getTime() - candleDate.getTime()) / 3600000);
-      candle.offsetRight = hourDifference * this.candleWidth;
-
-      // Because we receive japanese candles in ascending order, the first one is the furthest from the
-      // right side of the view port. (Maybe candles should be transmitted in descending order. It makes more sense that way)
-      // if(i == 0) {
-      //   this.candlesContainerConfig.width = candle.offsetRight + this.candleWidth;
-      // }
-
       let priceTop = candle.condensed == true ? candle.priceClose : candle.priceTop;
       if(priceTop > this.priceTop)
         this.priceTop = priceTop;
@@ -427,23 +506,54 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
       let priceBottom = candle.condensed == true ? candle.priceClose : candle.priceBottom;
       if(this.priceBottom == 0 || priceBottom < this.priceBottom)
         this.priceBottom = priceBottom;
+    }
+
+    const containerBoundingBox = this.candlesContainerNative!.getBoundingClientRect();
+    let pixelPriceRatio = containerBoundingBox.height / (this.priceTop - this.priceBottom);
+
+    let now = DateTime.now();
+    // let currentHour = now.getUTCHours();
+    // let candleOffset = 0;
+    for(let i=0; i<candles.length; i++) {
+      let candle = candles[i];  
+      let candleDate = DateTime.fromMillis(candle.timestamp).set({minute:0, second:0, millisecond:0});
+      
+      candle.dateTime = candleDate.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS);
+      candle.timestamp = candleDate.toMillis();
+      let hourDifference = Math.floor((now.toMillis() - candleDate.toMillis()) / 3600000);
+      candle.offsetRight = hourDifference * this.timePeriodsConfig.periodPixelLength;
+
+      // Because we receive japanese candles in ascending order, the first one is the furthest from the
+      // right side of the view port. (Maybe candles should be transmitted in descending order - it makes more sense that way)
+      if(i == 0) {
+        this.candlesContainerConfig.width = candle.offsetRight + this.candleWidth;
+      }
 
       if(true == candle.condensed) {
-        candle.height = 1;
+        candle.height = 25;
         candle.offsetTop = ((pixelPriceRatio * this.priceTop) - (candle.priceClose * pixelPriceRatio));
       }
       
     }
 
-      
+      this.changeDetectorRef.detectChanges();
       // setTimeout(()=>{
       //   // adjust candles' view port to display most recent price candles
-      //   this.candlesViewPort?.nativeElement.scroll({
-      //     left: this.candlesContainerConfig.width
-      //   });
+        this.candlesViewPort?.nativeElement.scroll({
+          left: this.candlesContainerConfig.width
+        });
 
+        console.clear();
+        console.log("elementScrollLeft: "+this.candlesViewPort?.nativeElement.scrollLeft);
       //   this.repositionCandles();
       // }, 0);
+
+      setTimeout(()=>{
+        this.timePeriodsConfig.keyCandle = this.japaneseCandles[this.japaneseCandles.length-1];
+        this.timePeriodsConfig.keyCandle.isKey = true;
+        this.alignCandlesWithTimePeriods();
+        this.timePeriodsConfig.keyCandle.isKey = false;
+      }, 0);
 
     this.figureOutPriceLabels();
   }
@@ -470,7 +580,7 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
     let boundingBox = this.candlesContainerNative!.getBoundingClientRect();
     let pricePixelRatio = (this.priceTop - this.priceBottom) / boundingBox.height;
 
-    //don't clutter price labels one next to the other. It's gonna appear confusing. Here we assume 
+    //don't clutter price labels one next to the other. It's gonna appear confusing.
     let divisibility = this.priceLabelHeight*3*pricePixelRatio;
 
     // Price labels should be divisible by some nice round number, like 10, 100, etc.
@@ -578,7 +688,7 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
         priceHeight -= this.resizingFlangeConfig.mouseOrigin - event.clientY;
         volumeHeight += this.resizingFlangeConfig.mouseOrigin - event.clientY;
 
-        if(priceHeight <= 60) // prevent making the one of the panes impractically small
+        if(priceHeight <= 60) // prevent making one of the panes impractically small
           return;
 
         this.resizingFlangeConfig.priceViewHeight = priceHeight.toString() + "px";
@@ -587,7 +697,7 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
       else {
         priceHeight += event.clientY - this.resizingFlangeConfig.mouseOrigin;
         volumeHeight -= event.clientY - this.resizingFlangeConfig.mouseOrigin;
-        if(volumeHeight <= 60) // prevent making the one of the panes impractically small
+        if(volumeHeight <= 60) // prevent making one of the panes impractically small
           return;
 
         this.resizingFlangeConfig.priceViewHeight = priceHeight.toString() + "px";
@@ -598,12 +708,61 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
     }
   }
 
+  determineKeyCandle(event: PointerEvent) {
+    //let candle = document.querySelector(".JapaneseCandle:last-child");
+    //this.japaneseCandles
+    this.timePeriodsConfig.keyCandle = this.japaneseCandles[this.japaneseCandles.length-1];
+    this.timePeriodsConfig.keyCandle.isKey = true;
+  } 
+
+  alignCandlesWithTimePeriods() {
+    this.changeDetectorRef.detectChanges();
+    const viewPortBox = this.candlesViewPort.nativeElement.getBoundingClientRect();
+    const candle = document.querySelector(".JapaneseCandle.key");
+    const candleTimestamp = parseInt(candle?.getAttribute("data-timestamp") || "0");
+    const candleDateTime = DateTime.fromMillis(candleTimestamp);
+
+    const candleBox = candle?.getBoundingClientRect();
+    const verticalAxis = (candleBox!.x + Math.ceil(candleBox!.width/2)) - viewPortBox.x;
+
+    const periodOffset = viewPortBox.width - verticalAxis - this.timePeriodsConfig.rightMostOffset;
+    const periodBelowCandle = Math.round(periodOffset / this.timePeriodsConfig.periodPixelLength);
+
+    let periodDateTime = this.timePeriodsConfig.rightMostPeriod.minus({hours: periodBelowCandle});
+
+    if(candleDateTime.toMillis() == periodDateTime.toMillis()) {
+      console.log("key period aligned to key candle");
+    }
+    else if(candleDateTime.toMillis() > periodDateTime.toMillis()) {
+      let adjustmentPeriods = Math.ceil((candleDateTime.toMillis() - periodDateTime.toMillis()) / 3600000);
+
+      this.timePeriodsConfig.rightMostPeriod = this.timePeriodsConfig.rightMostPeriod.plus({hours:adjustmentPeriods});
+      console.log("adjustmentPeriods: +"+adjustmentPeriods+
+      "; rightMostPeriod: "+this.timePeriodsConfig.rightMostPeriod.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS)+
+      "; candle: "+candleDateTime.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS));
+    }
+    else /*if(candleDateTime.toMillis() < periodDateTime.toMillis())*/ {
+      let adjustmentPeriods = Math.ceil((periodDateTime.toMillis() - candleDateTime.toMillis()) / 3600000);
+      this.timePeriodsConfig.rightMostPeriod = this.timePeriodsConfig.rightMostPeriod.minus({hours:adjustmentPeriods});
+      console.log("adjustmentPeriods: -"+adjustmentPeriods+
+      "; rightMostPeriod: "+this.timePeriodsConfig.rightMostPeriod.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS)+
+      "; candle: "+candleDateTime.toLocaleString(DateTime.DATETIME_SHORT_WITH_SECONDS));  
+    }
+
+    this.changeDetectorRef.detectChanges();
+    this.figureOutTimeLabels();
+  }
+
   priceVolume_MouseDown(event: PointerEvent) {
     this.timePeriodsConfig.isScrolling = true;
     this.timePeriodsConfig.mouseOriginX = event.clientX;
+    this.timePeriodsConfig.mouseOriginXViewPortScroll = event.clientX;
 
-    ((event as MouseEvent).currentTarget as HTMLElement).onpointermove = (e:PointerEvent)=>this.priceVolume_PointerMove(e);
+    ((event as MouseEvent).currentTarget as HTMLElement).onpointermove = (e:PointerEvent)=>this.priceVolume_ScrollSideways(e);
     ((event as MouseEvent).currentTarget as HTMLElement).setPointerCapture((event as PointerEvent).pointerId);
+
+    this.determineKeyCandle(event);
+    this.alignCandlesWithTimePeriods();
   }
 
   priceVolume_MouseUp(event: PointerEvent) {
@@ -611,73 +770,108 @@ export class TradingViewComponent implements OnInit, AfterViewInit {
 
     ((event as MouseEvent).currentTarget as HTMLElement).onpointermove = null;
     ((event as MouseEvent).currentTarget as HTMLElement).releasePointerCapture((event as PointerEvent).pointerId);
+  
+    this.timePeriodsConfig.keyCandle.isKey = false;
   }
 
-  // priceVolume_PointerMove(event: PointerEvent) {
-  //   if(this.timePeriodsConfig.isScrolling == true) {
-  //     this.timePeriodsConfig.rightMostOffset = this.timePeriodsConfig.mouseOriginX - event.clientX;
-  //     if(this.timePeriodsConfig.rightMostOffset > (this.timePeriodsConfig.timeWidth/2) + (this.timePeriodsConfig.timeWidth*2)
-  //       /*this.timePeriodsConfig.periodPixelLength*/) {
-  //       const difference = this.timePeriodsConfig.rightMostOffset - this.timePeriodsConfig.periodPixelLength;
-  //       const periodDifference = Math.ceil(difference / this.timePeriodsConfig.periodPixelLength);
-  //       const roundedDiff = Math.ceil(difference);
-  //       const offset = difference - roundedDiff;
-  //       // console.log("rightMostOffset: "+this.timePeriodsConfig.rightMostOffset+"; difference: "+difference+
-  //       //            "; roundedDiff: "+roundedDiff+"; offset: "+offset+"; periodDifference: "+periodDifference);
-  //       switch(this.viewMode) {
-  //         case ViewMode.HOURLY:
-  //           // console.log("rightMostPeriod: "+this.timePeriodsConfig.rightMostPeriod);
-  //           this.timePeriodsConfig.rightMostPeriod = this.timePeriodsConfig.rightMostPeriod.plus({hours: periodDifference});
-  //           // console.log("rightMostPeriod: "+this.timePeriodsConfig.rightMostPeriod);
-  //           this.timePeriodsConfig.rightMostOffset = -offset;
-  //           this.timePeriodsConfig.mouseOriginX = event.clientX - offset;
-  //           // console.log("rightMostOffset: "+offset);
-  //           break;
+  priceVolume_ScrollSideways(event: PointerEvent) {
 
-  //       }
-  //     }
-  //     this.figureOutTimeLabels();
-  //     this.changeDetectorRef.detectChanges();
-  //   }
-  // }
+    /* TODO generate and keep a candle for each period, regardless if there is price data
+     * DONE sync periods (or the key/rightmost period) to a candle
+     * DONE when crosshair is being displayed in one of the views (price view or volume view) display its
+     *      vertical bar to the other view
+     * DONE display crosshair's vertical bar aligned to time periods
+     * 
+     * BUG  Scrolling to the left doesn't work
+     * 
+     * BUG Pressing mouse button to start scrolling resets price view scroll
+    */
+    
+    if(this.timePeriodsConfig.isScrolling == false) {
+      return;
+    }
 
-  priceVolume_PointerMove(event: PointerEvent) {
-    if(this.timePeriodsConfig.isScrolling == true) {
-      this.timePeriodsConfig.rightMostOffset = this.timePeriodsConfig.mouseOriginX - event.clientX;
+      // TODO Try to do subpixel scrolling
+      const maxScrollLeft = this.candlesViewPort?.nativeElement.scrollWidth - this.candlesViewPort?.nativeElement.clientWidth;
+      let viewPortScroll = maxScrollLeft - (event.clientX - this.timePeriodsConfig.mouseOriginXViewPortScroll);
+
+      //return;
+      if(viewPortScroll > maxScrollLeft) {
+        //console.log("(underscroll) viewPortScroll: "+viewPortScroll+", maxScrollLeft: "+maxScrollLeft);
+        return;
+      } else if(viewPortScroll < 0) {
+        //console.log("(overscroll) viewPortScroll: "+viewPortScroll+", maxScrollLeft: "+maxScrollLeft);
+        return;
+      }
+
+      this.candlesViewPort?.nativeElement.scroll({
+           left: viewPortScroll
+      });
+
+      let scroll = this.timePeriodsConfig.mouseOriginX - event.clientX;
+      this.timePeriodsConfig.rightMostOffset = scroll;
+
+
+      // Scrolling to the left
       if(this.timePeriodsConfig.rightMostOffset > this.timePeriodsConfig.periodPixelLength) {
         const difference = this.timePeriodsConfig.rightMostOffset - this.timePeriodsConfig.periodPixelLength;
-        const periodDifference = Math.ceil(difference / this.timePeriodsConfig.periodPixelLength);
+        const periodDifference = Math.ceil(difference / Math.ceil(this.timePeriodsConfig.periodPixelLength));
         const roundedDiff = Math.ceil(difference);
         const offset = difference - roundedDiff;
-        // console.log("rightMostOffset: "+this.timePeriodsConfig.rightMostOffset+"; difference: "+difference+
-        //            "; roundedDiff: "+roundedDiff+"; offset: "+offset+"; periodDifference: "+periodDifference);
         switch(this.viewMode) {
           case ViewMode.HOURLY:
-            // console.log("rightMostPeriod: "+this.timePeriodsConfig.rightMostPeriod);
             this.timePeriodsConfig.rightMostPeriod = this.timePeriodsConfig.rightMostPeriod.plus({hours: periodDifference});
-            // console.log("rightMostPeriod: "+this.timePeriodsConfig.rightMostPeriod);
-            this.timePeriodsConfig.rightMostOffset = -offset;
-            this.timePeriodsConfig.mouseOriginX = event.clientX - offset;
-            this.timePeriodsConfig.rightMostLabelAtPeriod += periodDifference;
-            console.log("periodPixelLength: "+this.timePeriodsConfig.periodPixelLength+"; rightMostOffset: "+this.timePeriodsConfig.rightMostOffset);
-            //console.log(this.timePeriodsConfig.periodsBetweenLabels);
-            if(this.timePeriodsConfig.rightMostLabelAtPeriod > this.timePeriodsConfig.periodsBetweenLabels) {
-              this.timePeriodsConfig.rightMostLabelAtPeriod -= this.timePeriodsConfig.periodsBetweenLabels;
-            }
-            // console.log("rightMostOffset: "+offset);
             break;
         }
+        this.timePeriodsConfig.rightMostOffset = -Math.ceil(offset);
+        this.timePeriodsConfig.mouseOriginX = event.clientX - offset;
+        this.timePeriodsConfig.rightMostLabelAtPeriod += periodDifference;
+        if(this.timePeriodsConfig.rightMostLabelAtPeriod > this.timePeriodsConfig.periodsBetweenLabels) {
+          this.timePeriodsConfig.rightMostLabelAtPeriod -= this.timePeriodsConfig.periodsBetweenLabels;
+        }
       }
-      this.figureOutTimeLabels();
+      // Scrolling to the right
+      else if(this.timePeriodsConfig.rightMostOffset < -(this.timePeriodsConfig.periodPixelLength * this.timePeriodsConfig.periodsBetweenLabels)) {
+        const difference = -this.timePeriodsConfig.rightMostOffset - this.timePeriodsConfig.periodPixelLength;
+        const periodDifference = Math.ceil(difference / Math.ceil(this.timePeriodsConfig.periodPixelLength));
+        const roundedDiff = Math.ceil(difference);
+        const offset = difference - roundedDiff;
+        switch(this.viewMode) {
+          case ViewMode.HOURLY:
+            this.timePeriodsConfig.rightMostPeriod = this.timePeriodsConfig.rightMostPeriod.minus({hours: periodDifference});
+            break;
+        }
+        this.timePeriodsConfig.rightMostOffset = -Math.ceil(offset);
+        this.timePeriodsConfig.mouseOriginX = event.clientX - offset;
+        this.timePeriodsConfig.rightMostLabelAtPeriod += periodDifference;
+        if(this.timePeriodsConfig.rightMostLabelAtPeriod > this.timePeriodsConfig.periodsBetweenLabels) {
+          this.timePeriodsConfig.rightMostLabelAtPeriod -= this.timePeriodsConfig.periodsBetweenLabels;
+        }
+      }
+      //this.figureOutTimeLabels();
+      this.alignCandlesWithTimePeriods();
       this.changeDetectorRef.detectChanges();
-    }
   }
 
 }
 
+interface Candle {
+  market: number,
+  priceOpen: number,
+  priceClose: number,
+  timestamp: number,
+  height: number,
+  priceTop: number,
+  offsetTop: number,
+  offsetRight: number,
+  dateTime: string,
+  priceBottom: number
+  condensed: boolean,
+  isKey: boolean,
+}
+
 interface PriceVolume {
   isScrolling: boolean,
-
 }
 
 interface ResizingFlange {

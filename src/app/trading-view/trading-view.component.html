@@ -1,34 +1,45 @@
 <div class="TradingView">
     <div class="debugPane">
-        <div>DateLabelWidth: {{timePeriodsConfig.dateWidth}}</div>
-        <div>TimeLabelWidth: {{timePeriodsConfig.timeWidth}}</div>
-        <div>rightMostOffset: {{timePeriodsConfig.rightMostOffset}}</div>
-        <div>rightMostLabel DT: {{timeLabels[0]?.timestamp?.toLocaleString(DateTime.DATETIME_SHORT)}}</div>
-        <div>rightMostLabelAtPeriod: {{timePeriodsConfig.rightMostLabelAtPeriod}}</div>
-        <div>rightMostPeriod: {{timePeriodsConfig.rightMostPeriod.toLocaleString(DateTime.DATETIME_SHORT)}}</div>
-        <div>periodPixelLength: {{timePeriodsConfig.periodPixelLength}}</div>
-        
+        <button (click)="toggleDebugInfo()">Toggle Debug Info</button>
+        <div [class.notDisplayed]="showDebugInfo == false">
+            <div>Crosshair: {{crosshair.x}} x {{crosshair.y}}</div>
+            <div>periodPixelLength: {{timePeriodsConfig.periodPixelLength}}</div>
+            <div>DateLabelWidth: {{timePeriodsConfig.dateWidth}}</div>
+            <div>TimeLabelWidth: {{timePeriodsConfig.timeWidth}}</div>
+            <div>rightMostOffset: {{timePeriodsConfig.rightMostOffset}}</div>
+            <div>rightMostLabel DateTime: {{timeLabels[0]?.timestamp?.toLocaleString(DateTime.DATETIME_SHORT)}}</div>
+            <div>rightMostLabelAtPeriod: {{timePeriodsConfig.rightMostLabelAtPeriod}}</div>
+            <div>period: {{viewMode == enumViewMode.HOURLY ? "Hour" : "Day"}}</div>
+            <div>rightMostPeriod: {{timePeriodsConfig.rightMostPeriod.toLocaleString(DateTime.DATETIME_SHORT)}}</div>
+            <div>periodsBetweenLabels: {{timePeriodsConfig.periodsBetweenLabels}}</div>
+            <div>pixelsBetweenLabels: {{timePeriodsConfig.periodsBetweenLabels * timePeriodsConfig.periodPixelLength}}</div>
+            <div>mouseOriginX: {{timePeriodsConfig.mouseOriginX}}</div>
+        </div>
     </div>
     <div class="PriceVolumeView">
         <div class="ToolBox">
+        <!--
             <button (click)="toggleHourView()" [class.toggled]="viewMode == enumViewMode.HOURLY">Hour</button>
             <button (click)="toggleDayView()" [class.toggled]="viewMode == enumViewMode.DAILY">Day</button>
+        -->
             <span>Top Price: {{priceTop}} Bottom Price: {{priceBottom}}</span>
         </div>
         <div class="PriceView" #PriceView (pointerdown)="priceVolume_MouseDown($event)"
         (pointerup)="priceVolume_MouseUp($event)"
         [class.isScrolling]="timePeriodsConfig.isScrolling == true"
         [style.height]="resizingFlangeConfig.priceViewHeight">
-            <div class="ViewPortCrossHairLayer">
-                <div class="crosshair crosshair-x" [style.top.px]="crosshairY" [style.display]="showCrosshair == true ? 'block' : 'none' "></div>
-                <div class="crosshair crosshair-y" [style.left.px]="crosshairX" [style.display]="showCrosshair == true ? 'block' : 'none' "></div>
-                <div class="CandlesViewPort" #CandlesViewPort (mousemove)="onMouseMove($event)" (mouseleave)="hideCrossHair($event)">
+            <div class="ViewPortCrossHairLayer" (mousemove)="moveCrossHair($event, enumViewPort.PRICE)" (mouseleave)="hideCrossHair($event)">
+                <div class="crosshair crosshair-x" [style.top.px]="crosshair.y" [style.display]="crosshair.show == true  && crosshair.viewPort == enumViewPort.PRICE ? 'block' : 'none' "></div>
+                <div class="crosshair crosshair-y" [style.left.px]="crosshair.x" [style.display]="crosshair.show == true ? 'block' : 'none' "></div>
+                <div class="CandlesViewPort" #CandlesViewPort>
                     <div class="CandlesContainer" [style.width.px]="candlesContainerConfig.width">
                         <div class="JapaneseCandle" *ngFor="let candle of japaneseCandles" [style.height.px]="candle.height"
-                        [style.width.px]="candleWidth"
+                        [class.key]="candle.isKey"
+                        [style.width.px]="timePeriodsConfig.periodPixelLength"
                         [style.right.px]="candle.offsetRight"
                         [style.top.px]="candle.offsetTop"
                         [attr.data-dateTime]="candle.dateTime"
+                        [attr.data-timestamp]="candle.timestamp"
                         [attr.data-priceClose]="candle.priceClose"
                         [attr.data-market]="candle.market"></div>
                     </div>
@@ -51,13 +62,23 @@
         (pointerup)="priceVolume_MouseUp($event)"
         [class.isScrolling]="timePeriodsConfig.isScrolling == true"
         [style.height]="resizingFlangeConfig.volumeViewHeight">
-            <div class="ViewPortCrossHairLayer">
-
+            <div class="ViewPortCrossHairLayer" (mousemove)="moveCrossHair($event, enumViewPort.VOLUME)" (mouseleave)="hideCrossHair($event)">
+                <div class="crosshair crosshair-x" [style.top.px]="crosshair.y" [style.display]="crosshair.show == true && crosshair.viewPort == enumViewPort.VOLUME ? 'block' : 'none' "></div>
+                <div class="crosshair crosshair-y" [style.left.px]="crosshair.x" [style.display]="crosshair.show == true ? 'block' : 'none' "></div>
+                <div class="volumeViewPort">
+                    <div class="volumeColumnsContainer">
+                        <div *ngFor="let column of volumeColumns"></div>
+                    </div>
+                </div>
             </div>
         </div>
         <!-- <div class="timePeriod" *ngFor="let period of timePeriodsConfig.periods" [style.width.px]="timePeriodsConfig.periodPixelLength">
         </div> -->
         <div class="timeLabels">
+                <div class="visiblePeriod" *ngFor="let period of periods" [style.right.px]="period.right"
+                    [class.atLabel]="period.atLabel">
+
+                </div>
                 <div class="timeLabel" *ngFor="let label of timeLabels"
                     [style.right.px]="label.right" [class.invisible]="label.invisible">
                     {{label.text}}
